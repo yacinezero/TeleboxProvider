@@ -1,0 +1,13 @@
+[
+  {
+    "name": "TeleboxProvider",
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/latest/download/TeleboxProvider.cs3",
+    "version": 1,
+    "status": 1,
+    "authors": ["yacinezero"],
+    "description": "Access Telebox/Linkbox cloud storage files in CloudStream",
+    "language": "all",
+    "types": ["Movie", "TvSeries", "Anime", "OVA"],
+    "iconUrl": "https://www.linkbox.to/favicon.ico"
+  }
+]

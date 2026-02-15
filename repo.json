@@ -1,0 +1,8 @@
+{
+  "name": "Telebox Repository",
+  "description": "CloudStream extension for Telebox/Linkbox cloud storage service",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/yacinezero/TeleboxProvider/main/plugins.json"
+  ]
+}
