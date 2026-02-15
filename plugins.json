@@ -1,13 +1,22 @@
 [
   {
-    "name": "TeleboxProvider",
-    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v1.0/TeleboxProvider.cs3",
-    "version": 1,
+    "iconUrl": "https://www.linkbox.to/favicon.ico",
+    "apiVersion": 1,
+    "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider",
+    "fileSize": 7311,
     "status": 1,
-    "authors": ["yacinezero"],
-    "description": "Access Telebox/Linkbox cloud storage files in CloudStream",
-    "language": "all",
-    "types": ["Movie", "TvSeries", "Anime", "OVA"],
-    "iconUrl": "https://www.linkbox.to/favicon.ico"
+    "language": "en",
+    "authors": [
+      "yacinezero"
+    ],
+    "tvTypes": [
+      "Movie",
+      "TvSeries"
+    ],
+    "version": 1,
+    "internalName": "TeleboxProvider",
+    "description": "Access Telebox/Linkbox cloud storage files",
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v1.0/TeleboxProvider.cs3",
+    "name": "TeleboxProvider"
   }
 ]
