@@ -1,5 +1,7 @@
 package com.telebox
 
+import android.content.Context
+import android.net.Uri
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.lagradost.cloudstream3.ErrorLoadingException
@@ -16,21 +18,21 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import java.net.URLEncoder
 
 /**
- * Experimental Linkbox/Telebox provider.
+ * Telebox/Linkbox provider.
  *
- * The upstream API is undocumented. The endpoint names below are based on the
- * public TheWNetwork client, not on a stable official API. No demo content or
- * unrelated DEX is used here. A real token must be supplied by the eventual
- * CloudStream settings UI before this provider can be enabled for users.
+ * Public Linkbox share links use the documented-by-example share_out_list API
+ * found in ibnsamy96/linkbox-downloader. Private Telebox browsing uses the
+ * file_search API found in TheWNetwork/twn-api-upload. Both APIs are unofficial.
  */
 class TeleboxProvider : MainAPI() {
     override var mainUrl = "https://www.linkbox.to"
-    override var name = "Telebox (experimental)"
+    override var name = "Telebox / Linkbox"
     override var lang = "all"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Others)
     override val hasMainPage = true
@@ -38,56 +40,76 @@ class TeleboxProvider : MainAPI() {
 
     private val mapper = jacksonObjectMapper()
 
-    // Deliberately empty until a CloudStream settings surface is implemented.
-    private val token: String = ""
-    private val rootFolderId: String = "0"
+    private val prefs
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+    private val token get() = prefs?.getString(TeleboxPlugin.KEY_TOKEN, "")?.trim().orEmpty()
+    private val folderId get() = prefs?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0")?.trim().orEmpty().ifBlank { "0" }
+    private val shareUrl get() = prefs?.getString(TeleboxPlugin.KEY_SHARE_URL, "")?.trim().orEmpty()
 
-    private fun requireToken() {
-        if (token.isBlank()) {
-            throw ErrorLoadingException(
-                "Telebox token is not configured. Configure a token before enabling this provider."
-            )
+    private fun requireConfigured() {
+        if (shareUrl.isBlank() && token.isBlank()) {
+            throw ErrorLoadingException("افتح إعدادات Telebox وأدخل رابط مشاركة Linkbox أو API Token")
         }
-    }
-
-    private suspend fun searchFiles(query: String, folderId: String): List<JsonNode> {
-        requireToken()
-        val url = "$mainUrl/api/open/file_search" +
-            "?token=${encode(token)}&pid=${encode(folderId)}&name=${encode(query)}&pageNo=1&pageSize=50"
-        val root = mapper.readTree(app.get(url).text)
-        return root.path("data").path("list").toList()
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
+    private suspend fun privateSearch(query: String): List<JsonNode> {
+        requireConfigured()
+        if (token.isBlank()) return emptyList()
+        val url = "$mainUrl/api/open/file_search" +
+            "?token=${encode(token)}&pid=${encode(folderId)}&name=${encode(query)}&pageNo=1&pageSize=50"
+        return mapper.readTree(app.get(url).text).path("data").path("list").toList()
+    }
+
+    private fun shareParts(): Pair<String, String> {
+        val uri = Uri.parse(shareUrl)
+        val shareToken = uri.pathSegments.lastOrNull().orEmpty()
+        if (shareToken.isBlank()) throw ErrorLoadingException("رابط مشاركة Linkbox غير صالح")
+        return shareToken to (uri.getQueryParameter("pid") ?: "0")
+    }
+
+    private suspend fun publicShareList(pid: String): List<JsonNode> {
+        val (shareToken, _) = shareParts()
+        val url = "$mainUrl/api/file/share_out_list/?pageSize=50&shareToken=${encode(shareToken)}&pid=${encode(pid)}"
+        val root = mapper.readTree(app.get(url).text)
+        if (!root.has("data")) throw ErrorLoadingException("لم يتم العثور على بيانات رابط المشاركة")
+        return root.path("data").path("list").toList()
+    }
+
     private fun displayName(node: JsonNode): String =
         node.path("name").asText(node.path("fileName").asText("Unnamed file"))
 
-    private fun fileUrl(node: JsonNode): String? {
-        val candidates = listOf("url", "downloadUrl", "dlink", "download_url")
-        return candidates.asSequence()
+    private fun directUrl(node: JsonNode): String? =
+        listOf("url", "downloadUrl", "dlink", "download_url").asSequence()
             .map { node.path(it).asText("") }
             .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
-    }
 
-    private fun toSearch(node: JsonNode): SearchResponse {
-        val name = displayName(node)
-        val id = node.path("id").asText(node.path("fid").asText(name))
-        return newMovieSearchResponse(name, "$mainUrl/telebox/$id", TvType.Movie)
+    private fun toSearch(node: JsonNode, direct: String?): SearchResponse? {
+        val url = direct ?: directUrl(node) ?: return null
+        return newMovieSearchResponse(displayName(node), url, TvType.Movie)
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val items = searchFiles("", rootFolderId).map(::toSearch)
+        requireConfigured()
+        val nodes = if (shareUrl.isNotBlank()) {
+            val (_, pid) = shareParts()
+            publicShareList(pid)
+        } else privateSearch(" ")
+        val items = nodes.filter { it.path("type").asText() != "dir" }
+            .mapNotNull { toSearch(it, null) }
         return newHomePageResponse(listOf(HomePageList("Telebox files", items)), false)
     }
 
-    override suspend fun search(query: String): List<SearchResponse> =
-        searchFiles(query, rootFolderId).map(::toSearch)
-
-    override suspend fun load(url: String): LoadResponse {
-        val name = url.substringAfterLast('/').ifBlank { "Telebox file" }
-        return newMovieLoadResponse(name, url, TvType.Movie, url)
+    override suspend fun search(query: String): List<SearchResponse> {
+        val nodes = if (shareUrl.isNotBlank()) {
+            publicShareList(shareParts().second).filter { displayName(it).contains(query, true) }
+        } else privateSearch(query)
+        return nodes.mapNotNull { toSearch(it, null) }
     }
+
+    override suspend fun load(url: String): LoadResponse =
+        newMovieLoadResponse(url.substringAfterLast('/').ifBlank { "Telebox file" }, url, TvType.Movie, url)
 
     override suspend fun loadLinks(
         data: String,
@@ -95,24 +117,24 @@ class TeleboxProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        requireToken()
-        val id = data.substringAfterLast('/').substringBefore('?')
-        val node = searchFiles(id, rootFolderId).firstOrNull()
-            ?: throw ErrorLoadingException("Telebox file was not found")
-        val direct = fileUrl(node) ?: throw ErrorLoadingException(
-            "Telebox returned no direct media URL; the undocumented response format may have changed"
-        )
+        val direct = data.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: throw ErrorLoadingException("لم يعُد API رابط تنزيل مباشر لهذا الملف")
         callback(
             newExtractorLink(
                 source = name,
-                name = displayName(node),
+                name = "Telebox direct link",
                 url = direct,
-                type = if (direct.contains(".m3u8", ignoreCase = true)) "HLS" else "HTTP"
+                type = if (direct.contains(".m3u8", true)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
             ) {
                 referer = mainUrl
                 quality = Qualities.Unknown.value
             }
         )
         return true
+    }
+
+    companion object {
+        @Volatile
+        var appContext: Context? = null
     }
 }

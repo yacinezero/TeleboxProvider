@@ -1,16 +1,26 @@
 # TeleboxProvider for CloudStream
 
-هذا مستودع مصدر تجريبي لمزود CloudStream لخدمة Telebox/Linkbox. تمت إزالة ملف DEX السابق من قائمة التوزيع لأنه كان مأخوذاً من إضافة GDIndex وليس بناءً خاصاً بهذا المشروع.
+مزود تجريبي لـ Telebox/Linkbox. يدعم الآن روابط مشاركة Linkbox العامة عبر `share_out_list`، ويحتوي على مسار أولي لتصفح ملفات الحساب الخاص عبر `api/open/file_search`. واجهات الخدمة غير رسمية وقد تتغير.
 
-## الحالة الحالية
+## طريقة الإعداد داخل CloudStream
 
-المشروع يحتوي على هيكل CloudStream حديث وكود أولي يستند إلى endpoint `api/open/file_search` المذكور في عميل [TheWNetwork/twn-api-upload](https://github.com/TheWNetwork/twn-api-upload). واجهة Telebox غير موثقة وقد تتغير، كما أن طريقة إدخال token داخل CloudStream لم تُنفذ بعد. لذلك لا توجد حالياً إضافة قابلة للتثبيت عبر `plugins.json`، ولا ينبغي اعتبار المستودع إصداراً يعمل.
+بعد تثبيت نسخة مبنية من الإضافة، افتح صفحة Telebox واضغط زر الإعدادات الخاص بالإضافة. ستظهر الحقول التالية:
 
-## مراجع البنية
+- **رابط مشاركة Linkbox**: الصق رابط مشاركة عام مثل `https://linkbox.to/...`. هذا هو المسار الموصى به للاختبار لأنه لا يحتاج API Token.
+- **Telebox API Token**: استخدمه فقط إذا كنت تختبر حسابك الخاص. لا تضعه في GitHub أو ترسله لأي شخص.
+- **Base Folder ID**: رقم المجلد من رابط `admin/share-folder/...`، والقيمة الافتراضية `0`.
 
-- [CS-AR repo.json](https://raw.githubusercontent.com/mo7AmMeD64/cs-ar/main/repo/repo.json) يستخدم `manifestVersion` و`pluginLists`.
-- [3rabi repo](https://raw.githubusercontent.com/Abodabodd/re-3arabi/refs/heads/main/repo) يستخدم البنية نفسها مع قائمة إضافات منشورة.
-- ملفات `plugins.json` العاملة تشير إلى ملف `.cs3` مبني فعلياً، وتضم `apiVersion` و`fileSize` و`fileHash` عند توفره.
+بعد الحفظ، ارجع إلى صفحة المزود واضغط تحديث. تظهر الملفات التي يعيدها API. عند اختيار ملف، يستخدم المزود `item.url` الذي تعيده استجابة Linkbox كرابط مباشر، ولا يخترع رابطاً من ID فقط.
+
+## ما تعلمناه من المشاريع المرجعية
+
+- [`ibnsamy96/linkbox-downloader`](https://github.com/ibnsamy96/linkbox-downloader) يثبت مسار روابط المشاركة العامة: `GET /api/file/share_out_list/?pageSize=50&shareToken=...&pid=...`، ويأخذ رابط الملف من `data.list[].url`.
+- [`TheWNetwork/twn-api-upload`](https://github.com/TheWNetwork/twn-api-upload) يثبت `GET /api/open/file_search` وإرسال Telebox token كمعامل `token`، لكنه مشروع رفع ولا يثبت endpoint تنزيل.
+- [`rclone/rclone`](https://github.com/rclone/rclone) و[`zenden2k/uptooda`](https://github.com/zenden2k/uptooda) مفيدان كنماذج معمارية فقط، ولا يحتويان على endpoint عام يمكن نسخه إلى TeleboxProvider.
+
+## الحالة التقنية
+
+هذا المستودع لا ينشر ملف `.cs3` تلقائياً في `plugins.json` إلى أن يتم بناء الإضافة واختبارها على جهاز Android. ملف DEX القديم في Release `v4.0` كان مأخوذاً من GDIndex، لذلك لا تستخدمه.
 
 ## البناء
 
@@ -18,12 +28,4 @@
 ./gradlew TeleboxProvider:make
 ```
 
-ينشئ GitHub Actions ملف `.cs3` كـ artifact بعد نجاح البناء. لا تتم إضافته تلقائياً إلى `plugins.json` قبل اختبار حقيقي على Android.
-
-## لماذا لا يوجد تثبيت مباشر؟
-
-ملف `.cs3` السابق في Release `v4.0` كان معنونا بأنه يستخدم DEX من GDIndex، ولذلك كان يثبت كإضافة غير مرتبطة أو لا يعمل. نشره كمزود Telebox سيكون مضللاً. يلزم مطور Android/CloudStream لإكمال واجهة الإعدادات، اختبار استجابة API الحقيقية، واستخراج رابط تنزيل/بث موثوق لكل نوع ملف.
-
-## الترخيص
-
-MIT. راجع [LICENSE](LICENSE).
+يتطلب البناء Android SDK وGradle 8.9 أو أحدث. بعد نجاح البناء، يجب اختبار ملف `.cs3` برابط مشاركة عام أولاً، ثم اختبار Token خاص بحساب غير مهم. لا تنشر `plugins.json` قبل التحقق من أن الملف المبني من هذا المصدر.
