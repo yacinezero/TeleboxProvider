@@ -1,77 +1,29 @@
-# إضافة Telebox لـ CloudStream
+# TeleboxProvider for CloudStream
 
-هذا المستودع يحتوي على إضافة (extension) لتطبيق CloudStream 3، والتي تتيح لك الوصول إلى ملفات الفيديو والميديا المخزنة في حسابك على خدمة Telebox (المعروفة أيضاً بـ Linkbox).
+هذا مستودع مصدر تجريبي لمزود CloudStream لخدمة Telebox/Linkbox. تمت إزالة ملف DEX السابق من قائمة التوزيع لأنه كان مأخوذاً من إضافة GDIndex وليس بناءً خاصاً بهذا المشروع.
 
-## الميزات
+## الحالة الحالية
 
-- **الوصول إلى ملفاتك**: تصفح وجلب الملفات مباشرة من حسابك في Telebox.
-- **دعم المصادقة**: استخدم Token API الخاص بك للوصول الآمن إلى ملفاتك.
-- **بحث متكامل**: ابحث عن ملفاتك داخل CloudStream.
-- **جلب الروابط المباشرة**: احصل على روابط بث وتنزيل مباشرة لملفات الفيديو.
-- **Fallback تلقائي**: في حال فشل الـ API، تحاول الإضافة استخدام web scraping كحل بديل.
+المشروع يحتوي على هيكل CloudStream حديث وكود أولي يستند إلى endpoint `api/open/file_search` المذكور في عميل [TheWNetwork/twn-api-upload](https://github.com/TheWNetwork/twn-api-upload). واجهة Telebox غير موثقة وقد تتغير، كما أن طريقة إدخال token داخل CloudStream لم تُنفذ بعد. لذلك لا توجد حالياً إضافة قابلة للتثبيت عبر `plugins.json`، ولا ينبغي اعتبار المستودع إصداراً يعمل.
 
-## كيفية الاستخدام
+## مراجع البنية
 
-### 1. الحصول على Token API
+- [CS-AR repo.json](https://raw.githubusercontent.com/mo7AmMeD64/cs-ar/main/repo/repo.json) يستخدم `manifestVersion` و`pluginLists`.
+- [3rabi repo](https://raw.githubusercontent.com/Abodabodd/re-3arabi/refs/heads/main/repo) يستخدم البنية نفسها مع قائمة إضافات منشورة.
+- ملفات `plugins.json` العاملة تشير إلى ملف `.cs3` مبني فعلياً، وتضم `apiVersion` و`fileSize` و`fileHash` عند توفره.
 
-1.  اذهب إلى [صفحة حسابك في Linkbox](https://www.linkbox.to/admin/account).
-2.  سجل الدخول باستخدام بريدك الإلكتروني وكلمة المرور.
-3.  انسخ الـ **Token** الموجود في الصفحة.
-
-### 2. الحصول على Base Folder ID (اختياري)
-
-1.  اذهب إلى [ملفاتي في Linkbox](https://www.linkbox.to/admin/my-files).
-2.  افتح المجلد الذي تريد استخدامه كمجلد أساسي.
-3.  انسخ الـ ID من شريط العنوان. على سبيل المثال، إذا كان الرابط هو `https://www.linkbox.to/admin/share-folder/12345678`، فإن الـ ID هو `12345678`.
-
-### 3. تثبيت الإضافة في CloudStream
-
-1.  افتح CloudStream.
-2.  اذهب إلى **Settings > Extensions > Add Repository**.
-3.  أدخل رابط ملف `repo.json` الخاص بك (بعد رفعه إلى GitHub) في حقل "Repository URL".
-4.  اضغط **Download**.
-5.  اذهب إلى المستودع الذي أضفته للتو، وابحث عن إضافة **TeleboxProvider** وقم بتثبيتها.
-
-### 4. تكوين الإضافة
-
-1.  اذهب إلى **Settings > Providers > Telebox**.
-2.  أدخل **Token API** الذي نسخته في الخطوة الأولى.
-3.  (اختياري) أدخل **Base Folder ID** إذا كنت تريد البدء من مجلد معين.
-
-## للمطورين: كيفية بناء ورفع المستودع
-
-### 1. استبدال المتغيرات
-
-قبل رفع المستودع إلى GitHub، تأكد من استبدال المتغيرات التالية:
-
--   في ملف `repo.json`: استبدل `yacinezero` باسم المستخدم الخاص بك على GitHub.
--   في ملف `plugins.json`: استبدل `yacinezero` و `YourName` بمعلوماتك.
--   في ملف `TeleboxProvider/build.gradle.kts`: استبدل `YourName` باسمك في `authors`.
-
-### 2. بناء الإضافة
-
-لتجميع الإضافة وإنشاء ملف `.cs3`، استخدم الأمر التالي من الطرفية (Terminal) في جذر المشروع:
+## البناء
 
 ```bash
 ./gradlew TeleboxProvider:make
 ```
 
-سيتم إنشاء الملف في `TeleboxProvider/build/dist/`.
+ينشئ GitHub Actions ملف `.cs3` كـ artifact بعد نجاح البناء. لا تتم إضافته تلقائياً إلى `plugins.json` قبل اختبار حقيقي على Android.
 
-### 3. الرفع إلى GitHub
+## لماذا لا يوجد تثبيت مباشر؟
 
-1.  أنشئ مستودعاً جديداً على GitHub (مثلاً، `TeleboxProvider`).
-2.  ارفع جميع ملفات المشروع إلى المستودع.
-3.  أنشئ إصداراً جديداً (Release) على GitHub.
-4.  ارفع ملف `TeleboxProvider.cs3` الذي تم إنشاؤه إلى هذا الإصدار.
-5.  تأكد من أن رابط ملف `plugins.json` في `repo.json` صحيح ويشير إلى المستودع الخاص بك.
+ملف `.cs3` السابق في Release `v4.0` كان معنونا بأنه يستخدم DEX من GDIndex، ولذلك كان يثبت كإضافة غير مرتبطة أو لا يعمل. نشره كمزود Telebox سيكون مضللاً. يلزم مطور Android/CloudStream لإكمال واجهة الإعدادات، اختبار استجابة API الحقيقية، واستخراج رابط تنزيل/بث موثوق لكل نوع ملف.
 
-## ملاحظات هامة
+## الترخيص
 
--   الـ API الخاص بـ Telebox غير موثق رسمياً، وقد يتغير في أي وقت.
--   تم بناء هذه الإضافة بناءً على reverse engineering لمستودعات أخرى، وقد لا تعمل جميع الميزات بشكل مثالي.
--   سرعة جلب الروابط تعتمد على خوادم Telebox.
-
-## ترخيص
-
-هذا المشروع مرخص تحت رخصة MIT. انظر ملف `LICENSE` لمزيد من التفاصيل.
+MIT. راجع [LICENSE](LICENSE).
