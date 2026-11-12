@@ -34,7 +34,7 @@ class TeleboxProvider : MainAPI() {
     override var name = "Telebox / Linkbox"
     override var lang = "all"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Others)
-    override val hasMainPage = false
+    override val hasMainPage = true
     override val hasQuickSearch = true
 
     private val mapper = jacksonObjectMapper()
@@ -65,6 +65,12 @@ class TeleboxProvider : MainAPI() {
         listOf("url", "downloadUrl", "dlink", "download_url").asSequence()
             .map { node.path(it).asText("") }
             .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        // The provider is intentionally opened as a source so CloudStream shows
+        // its normal Search field. Paste a public Linkbox URL into that field.
+        return newHomePageResponse(emptyList(), false)
+    }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val nodes = publicShareList(query)
