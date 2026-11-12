@@ -1,5 +1,6 @@
 package com.telebox
 
+import android.content.Context
 import android.net.Uri
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -12,7 +13,6 @@ import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
@@ -20,6 +20,8 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.net.URLEncoder
 
 /**
@@ -38,6 +40,11 @@ class TeleboxProvider : MainAPI() {
     override val hasQuickSearch = true
 
     private val mapper = jacksonObjectMapper()
+    private val http = OkHttpClient()
+
+    private val savedShareUrl: String
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(TeleboxPlugin.KEY_SHARE_URL, "")?.trim().orEmpty()
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
@@ -53,7 +60,12 @@ class TeleboxProvider : MainAPI() {
     private suspend fun publicShareList(link: String): List<JsonNode> {
         val (shareToken, pid) = shareParts(link)
         val url = "$mainUrl/api/file/share_out_list/?pageSize=50&shareToken=${encode(shareToken)}&pid=${encode(pid)}"
-        val root = mapper.readTree(app.get(url).text)
+        val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
+        val body = http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw ErrorLoadingException("Linkbox API HTTP ${response.code}")
+            response.body?.string() ?: throw ErrorLoadingException("Linkbox API returned an empty response")
+        }
+        val root = mapper.readTree(body)
         if (!root.has("data")) throw ErrorLoadingException("رابط المشاركة غير صالح أو منتهي")
         return root.path("data").path("list").toList()
     }
@@ -67,13 +79,17 @@ class TeleboxProvider : MainAPI() {
             .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        // The provider is intentionally opened as a source so CloudStream shows
-        // its normal Search field. Paste a public Linkbox URL into that field.
-        return newHomePageResponse(emptyList(), false)
+        val link = savedShareUrl
+        if (link.isBlank()) return newHomePageResponse(emptyList(), false)
+        val items = publicShareList(link).filter { it.path("type").asText() != "dir" }
+            .mapNotNull { node -> directUrl(node)?.let { newMovieSearchResponse(displayName(node), it, TvType.Movie) } }
+        return newHomePageResponse(listOf(HomePageList("Linkbox files", items)), false)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val nodes = publicShareList(query)
+        val link = if (query.trim().startsWith("http", true)) query.trim() else savedShareUrl
+        if (link.isBlank()) throw ErrorLoadingException("افتح إعدادات Telebox وأدخل رابط مشاركة Linkbox")
+        val nodes = publicShareList(link)
         return nodes.filter { it.path("type").asText() != "dir" }
             .mapNotNull { node ->
                 val url = directUrl(node) ?: return@mapNotNull null
@@ -104,5 +120,14 @@ class TeleboxProvider : MainAPI() {
             }
         )
         return true
+    }
+
+    companion object {
+        @Volatile
+        var appContext: Context? = null
+
+        fun reloadSettings() {
+            // Settings are read from SharedPreferences on every request.
+        }
     }
 }

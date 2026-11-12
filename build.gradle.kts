@@ -9,11 +9,11 @@ buildscript {
         mavenCentral()
         maven("https://jitpack.io")
     }
-
     dependencies {
-        classpath("com.android.tools.build:gradle:8.11.0")
+        classpath("com.android.tools.build:gradle:8.7.3")
+        classpath("com.android.tools:r8:9.1.57")
         classpath("com.github.recloudstream:gradle:-SNAPSHOT")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0")
     }
 }
 
@@ -42,6 +42,7 @@ subprojects {
 
     android {
         namespace = "com.telebox"
+        buildToolsVersion = "35.0.0"
         defaultConfig {
             minSdk = 21
             compileSdkVersion(35)
@@ -64,14 +65,18 @@ subprojects {
     }
 
     dependencies {
+        val cloudstream by configurations
         val implementation by configurations
-        implementation("com.github.recloudstream.cloudstream:library:-SNAPSHOT")
+        cloudstream("com.lagradost:cloudstream3:pre-release")
+        implementation("androidx.appcompat:appcompat:1.7.0")
+        implementation("androidx.fragment:fragment-ktx:1.8.5")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+        implementation("com.squareup.okhttp3:okhttp:4.12.0")
         implementation(kotlin("stdlib"))
-        implementation("com.github.Blatzar:NiceHttp:0.4.11")
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
     }
 }
 
-tasks.register<Delete>("clean") {
+task<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

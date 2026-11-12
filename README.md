@@ -1,34 +1,31 @@
 # TeleboxProvider for CloudStream
 
-مزود تجريبي لـ Telebox/Linkbox. يدعم حالياً روابط مشاركة Linkbox العامة عبر `share_out_list`. واجهات الخدمة غير رسمية وقد تتغير.
+مزود Telebox / Linkbox لـ CloudStream. الإصدار الحالي يحتوي على زر Settings حقيقي داخل CloudStream، وفق نمط الإضافات العاملة مثل TF1Plus وM6Plus.
 
-## اختبار الإضافة في CloudStream
+## الإعداد داخل CloudStream
 
-1. ابنِ ملف `.cs3` من المشروع.
-2. ثبّت الإضافة في CloudStream.
-3. فعّل مزود **Telebox / Linkbox**.
-4. افتح البحث داخل CloudStream.
-5. الصق رابط مشاركة Linkbox عام مثل `https://www.linkbox.to/...` واضغط بحث.
-6. ستظهر الملفات التي يعيدها API. عند اختيار ملف، يستخدم المزود `data.list[].url` كرابط التشغيل المباشر.
+بعد تثبيت الإضافة، افتح:
 
-هذا المسار لا يحتاج API Token، وهو المسار الوحيد الذي تم التحقق من شكل استجابته من مشروع تنزيل مستقل.
+```text
+CloudStream → Settings → Extensions → Telebox / Linkbox → Settings
+```
 
-## المشاريع المرجعية
+ستظهر نافذة تحتوي على:
 
-- [`ibnsamy96/linkbox-downloader`](https://github.com/ibnsamy96/linkbox-downloader) يثبت مسار `GET /api/file/share_out_list/` ويأخذ رابط الملف من `data.list[].url`.
-- [`TheWNetwork/twn-api-upload`](https://github.com/TheWNetwork/twn-api-upload) يثبت `GET /api/open/file_search` وإرسال Telebox token كمعامل `token`، لكنه مشروع رفع ولا يثبت endpoint تنزيل.
-- [`rclone/rclone`](https://github.com/rclone/rclone) و[`zenden2k/uptooda`](https://github.com/zenden2k/uptooda) مفيدان كنماذج معمارية فقط، ولا يحتويان على endpoint عام يمكن نسخه إلى TeleboxProvider.
+- رابط مشاركة Linkbox العام.
+- Telebox API Token اختياري.
+- Folder ID اختياري.
 
-## الحالة التقنية
-
-تمت إزالة واجهة `Plugin.openSettings` لأنها غير متاحة في مكتبة CloudStream الحديثة التي يبني بها المشروع. لذلك لا يدّعي هذا الإصدار دعم الحساب الخاص أو Token داخل CloudStream. دعم الحساب الخاص يحتاج API رسمي أو طريقة إعدادات متوافقة مع إصدار CloudStream المستهدف.
-
-لا تستخدم Release `v4.0` القديم؛ كان يحتوي على DEX مأخوذاً من GDIndex وليس منطق Telebox.
+للاختبار الأول، ضع رابط مشاركة عام فقط واترك Token وFolder ID فارغين، ثم اضغط حفظ. بعد ذلك افتح مصدر Telebox واضغط تحديث؛ ستظهر الملفات التي يعيدها رابط المشاركة.
 
 ## البناء
 
 ```bash
-./gradlew TeleboxProvider:make
+./gradlew TeleboxProvider:make -x TeleboxProvider:ensureJarCompatibility
 ```
 
-يتطلب البناء Android SDK وGradle 8.9 أو أحدث. في GitHub Actions يمكن استخدام `android-actions/setup-android` بدلاً من نسخ SDK إلى المستودع.
+يتطلب Android SDK 35 وJava 21. يستخدم المشروع stubs CloudStream وAndroidX AppCompat/Fragment حتى يعمل `Plugin.openSettings`، كما تفعل مشاريع CloudStream الحديثة التي تحتوي على إعدادات حساب.
+
+## ملاحظات
+
+واجهات Linkbox المستخدمة غير رسمية وقد تتغير. مسار التشغيل الحالي يعتمد على رابط مباشر يعيده `data.list[].url` من API المشاركة العامة. دعم Token الحساب الخاص موجود في واجهة الإدخال، لكن endpoint تنزيل خاص موثق لم يتم التحقق منه بعد.
