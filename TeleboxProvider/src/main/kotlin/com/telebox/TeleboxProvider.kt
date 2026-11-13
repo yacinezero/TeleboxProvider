@@ -48,6 +48,10 @@ class TeleboxProvider : MainAPI() {
         get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
             ?.getString(TeleboxPlugin.KEY_SHARE_URL, "")?.trim().orEmpty()
 
+    private val savedToken: String
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(TeleboxPlugin.KEY_TOKEN, "")?.trim().orEmpty()
+
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
     private fun shareParts(link: String): Pair<String, String> {
@@ -87,7 +91,8 @@ class TeleboxProvider : MainAPI() {
     }
 
     private suspend fun fileDetail(itemId: String): String? {
-        val url = "$mainUrl/api/file/detail?itemId=${encode(itemId)}&needUser=1&needTpInfo=1&platform=web&pf=web&lan=en"
+        val token = savedToken.takeIf { it.isNotBlank() }?.let { "&token=${encode(it)}" }.orEmpty()
+        val url = "$mainUrl/api/file/detail?itemId=${encode(itemId)}&needUser=1&needTpInfo=1&platform=web&pf=web&lan=en$token"
         val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
         val body = http.newCall(request).execute().use { response -> response.body?.string().orEmpty() }
         val root = mapper.readTree(body)
@@ -100,7 +105,8 @@ class TeleboxProvider : MainAPI() {
     }
 
     private suspend fun listByTokenPid(shareToken: String, pid: String): List<JsonNode> {
-        val url = "$mainUrl/api/file/share_out_list/?pageSize=50&shareToken=${encode(shareToken)}&pid=${encode(pid)}"
+        val token = savedToken.takeIf { it.isNotBlank() }?.let { "&token=${encode(it)}" }.orEmpty()
+        val url = "$mainUrl/api/file/share_out_list/?pageSize=50&shareToken=${encode(shareToken)}&pid=${encode(pid)}$token"
         val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
         val body = http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw ErrorLoadingException("Linkbox API HTTP ${response.code}")

@@ -1,18 +1,18 @@
 [
   {
-    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v5.6/TeleboxProvider.cs3",
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v5.7/TeleboxProvider.cs3",
     "status": 1,
-    "version": 11,
+    "version": 12,
     "name": "Telebox / Linkbox",
     "internalName": "TeleboxProvider",
     "authors": ["yacinezero"],
-    "description": "Browse public Linkbox folders and list nested video files without opening folders as videos.",
-    "fileSize": 17352,
+    "description": "Browse public Linkbox folders and use an optional Telebox token for file resolution.",
+    "fileSize": 17605,
     "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider",
     "language": "all",
     "tvTypes": ["Movie", "TvSeries", "Others"],
     "iconUrl": "https://www.linkbox.to/favicon.ico",
     "apiVersion": 1,
-    "fileHash": "sha256-26209fa94a957aa7c9447b45ac8842577ad1e0e6aa9ebb7906fa85eeee31ffe3"
+    "fileHash": "sha256-ab80d15ff310868d2b37170cdf9d4400f4b24c499341fbadd00c11a2a818a857"
   }
 ]
