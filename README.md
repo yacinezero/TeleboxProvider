@@ -1,31 +1,33 @@
 # TeleboxProvider for CloudStream
 
-مزود Telebox / Linkbox لـ CloudStream. الإصدار الحالي يحتوي على زر Settings حقيقي داخل CloudStream، وفق نمط الإضافات العاملة مثل TF1Plus وM6Plus.
+مزود Telebox / Linkbox لـ CloudStream.
 
-## الإعداد داخل CloudStream
+## الإصدار الحالي
 
-بعد تثبيت الإضافة، افتح:
+الإصدار v5.3 يقبل روابط المشاركة من:
+
+- `https://lbx.zone/d/...`
+- `https://www.linkbox.to/...`
+- `https://www.linkbox.zone/a/d/...`
+
+ويعرض المجلدات العامة داخل CloudStream بدلاً من إسقاطها من النتائج. بعد فتح المجلد، تظهر الملفات والمجلدات الموجودة داخله.
+
+## الإعداد
+
+افتح:
 
 ```text
 CloudStream → Settings → Extensions → Telebox / Linkbox → Settings
 ```
 
-ستظهر نافذة تحتوي على:
+ضع رابط المشاركة العام في حقل رابط Linkbox ثم اضغط حفظ. يمكن ترك Token وFolder ID فارغين عند اختبار الروابط العامة.
 
-- رابط مشاركة Linkbox العام.
-- Telebox API Token اختياري.
-- Folder ID اختياري.
+## ملاحظة تشغيل مهمة
 
-للاختبار الأول، ضع رابط مشاركة عام فقط واترك Token وFolder ID فارغين، ثم اضغط حفظ. بعد ذلك افتح مصدر Telebox واضغط تحديث؛ ستظهر الملفات التي يعيدها رابط المشاركة.
+واجهة Linkbox العامة تعيد بيانات الملف مثل `item_id` و`vgroup`، ولا تعيد دائماً رابط CDN مباشر. لذلك v5.3 يضمن تصفح المجلدات وعرض الملفات، لكن تشغيل بعض الملفات قد يحتاج endpoint تنزيل/تشغيل خاص بالحساب أو رابطاً مباشراً يعيده API. لا يتم اختلاق رابط فيديو غير صالح.
 
 ## البناء
 
 ```bash
 ./gradlew TeleboxProvider:make -x TeleboxProvider:ensureJarCompatibility
 ```
-
-يتطلب Android SDK 35 وJava 21. يستخدم المشروع stubs CloudStream وAndroidX AppCompat/Fragment حتى يعمل `Plugin.openSettings`، كما تفعل مشاريع CloudStream الحديثة التي تحتوي على إعدادات حساب.
-
-## ملاحظات
-
-واجهات Linkbox المستخدمة غير رسمية وقد تتغير. مسار التشغيل الحالي يعتمد على رابط مباشر يعيده `data.list[].url` من API المشاركة العامة. دعم Token الحساب الخاص موجود في واجهة الإدخال، لكن endpoint تنزيل خاص موثق لم يتم التحقق منه بعد.

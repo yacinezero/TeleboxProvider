@@ -16,6 +16,8 @@ import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newEpisode
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
@@ -50,11 +52,26 @@ class TeleboxProvider : MainAPI() {
 
     private fun shareParts(link: String): Pair<String, String> {
         val uri = Uri.parse(link.trim())
-        val shareToken = uri.pathSegments.lastOrNull().orEmpty()
-        if (shareToken.isBlank() || !uri.host.orEmpty().contains("linkbox", true)) {
+        val host = uri.host.orEmpty().lowercase()
+        val segments = uri.pathSegments
+        val tokenIndex = segments.indexOfLast { it.isNotBlank() }
+        val shareToken = if (tokenIndex >= 0) segments[tokenIndex] else ""
+        if (shareToken.isBlank() || !(host.contains("linkbox") || host == "lbx.zone")) {
             throw ErrorLoadingException("الصق رابط مشاركة Linkbox عام في خانة البحث")
         }
         return shareToken to (uri.getQueryParameter("pid") ?: "0")
+    }
+
+    private fun nodeUrl(token: String, node: JsonNode): String =
+        "telebox://$token/${node.path("id").asLong(0)}"
+
+    private fun parseNodeUrl(url: String): Pair<String, String>? {
+        val uri = Uri.parse(url)
+        if (uri.scheme != "telebox") return null
+        val token = uri.host.orEmpty()
+        val pid = uri.pathSegments.firstOrNull().orEmpty()
+        if (token.isBlank() || pid.isBlank()) return null
+        return token to pid
     }
 
     private suspend fun publicShareList(link: String): List<JsonNode> {
@@ -81,8 +98,10 @@ class TeleboxProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val link = savedShareUrl
         if (link.isBlank()) return newHomePageResponse(emptyList(), false)
-        val items = publicShareList(link).filter { it.path("type").asText() != "dir" }
-            .mapNotNull { node -> directUrl(node)?.let { newMovieSearchResponse(displayName(node), it, TvType.Movie) } }
+        val (token, _) = shareParts(link)
+        val items = publicShareList(link).map { node ->
+            newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie)
+        }
         return newHomePageResponse(listOf(HomePageList("Linkbox files", items)), false)
     }
 
@@ -90,15 +109,30 @@ class TeleboxProvider : MainAPI() {
         val link = if (query.trim().startsWith("http", true)) query.trim() else savedShareUrl
         if (link.isBlank()) throw ErrorLoadingException("افتح إعدادات Telebox وأدخل رابط مشاركة Linkbox")
         val nodes = publicShareList(link)
-        return nodes.filter { it.path("type").asText() != "dir" }
-            .mapNotNull { node ->
-                val url = directUrl(node) ?: return@mapNotNull null
-                newMovieSearchResponse(displayName(node), url, TvType.Movie)
-            }
+        val (token, _) = shareParts(link)
+        return nodes.map { node ->
+            newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie)
+        }
     }
 
-    override suspend fun load(url: String): LoadResponse =
-        newMovieLoadResponse(url.substringAfterLast('/').ifBlank { "Linkbox file" }, url, TvType.Movie, url)
+    override suspend fun load(url: String): LoadResponse {
+        val (token, pid) = parseNodeUrl(url)
+            ?: return newMovieLoadResponse("Linkbox file", url, TvType.Movie, url)
+        val nodes = publicShareList("$mainUrl/d/$token?pid=$pid")
+        val episodes = nodes.mapIndexed { index, node ->
+            newEpisode(nodeUrl(token, node)) {
+                name = displayName(node)
+                season = 1
+                episode = index + 1
+            }
+        }
+        return newTvSeriesLoadResponse(
+            name = "Linkbox folder",
+            url = url,
+            type = TvType.TvSeries,
+            episodes = episodes
+        )
+    }
 
     override suspend fun loadLinks(
         data: String,
@@ -107,7 +141,7 @@ class TeleboxProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val direct = data.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-            ?: throw ErrorLoadingException("لم يعُد API رابط تنزيل مباشر لهذا الملف")
+            ?: throw ErrorLoadingException("هذا الملف يحتاج رابط تشغيل مباشر من Linkbox؛ API المشاركة أعاد بيانات الملف فقط")
         callback(
             newExtractorLink(
                 source = name,
