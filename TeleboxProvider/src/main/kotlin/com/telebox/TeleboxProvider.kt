@@ -96,6 +96,10 @@ class TeleboxProvider : MainAPI() {
 
     private suspend fun publicShareList(link: String): List<JsonNode> {
         val (shareToken, pid) = shareParts(link)
+        return listByTokenPid(shareToken, pid)
+    }
+
+    private suspend fun listByTokenPid(shareToken: String, pid: String): List<JsonNode> {
         val url = "$mainUrl/api/file/share_out_list/?pageSize=50&shareToken=${encode(shareToken)}&pid=${encode(pid)}"
         val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
         val body = http.newCall(request).execute().use { response ->
@@ -105,6 +109,25 @@ class TeleboxProvider : MainAPI() {
         val root = mapper.readTree(body)
         if (!root.has("data")) throw ErrorLoadingException("رابط المشاركة غير صالح أو منتهي")
         return root.path("data").path("list").toList()
+    }
+
+    private suspend fun collectVideos(
+        token: String,
+        pid: String,
+        folderPath: String,
+        depth: Int,
+        output: MutableList<Pair<JsonNode, String>>
+    ) {
+        if (depth > 4 || output.size >= 200) return
+        for (node in listByTokenPid(token, pid)) {
+            val name = displayName(node)
+            val path = if (folderPath.isBlank()) name else "$folderPath / $name"
+            if (node.path("type").asText() == "dir") {
+                collectVideos(token, node.path("id").asText(), path, depth + 1, output)
+            } else if (node.path("type").asText() == "video" || node.path("item_id").asText().isNotBlank()) {
+                output += node to path
+            }
+        }
     }
 
     private fun displayName(node: JsonNode): String =
@@ -138,14 +161,15 @@ class TeleboxProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val (token, pid) = parseNodeUrl(url)
             ?: return newMovieLoadResponse("Linkbox file", url, TvType.Movie, url)
-        val nodes = publicShareList("$mainUrl/d/$token?pid=$pid")
-        val episodes = nodes.mapIndexed { index, node ->
+        val videos = mutableListOf<Pair<JsonNode, String>>()
+        collectVideos(token, pid, "", 0, videos)
+        val episodes = videos.map { (node, path) ->
             newEpisode(nodeUrl(token, node), {
-                name = displayName(node)
+                name = path
             }, false)
         }
         return newTvSeriesLoadResponse(
-            name = "Linkbox folder",
+            name = "Linkbox videos",
             url = url,
             type = TvType.TvSeries,
             episodes = episodes
