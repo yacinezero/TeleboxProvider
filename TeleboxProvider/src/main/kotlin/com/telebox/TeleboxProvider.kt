@@ -62,16 +62,36 @@ class TeleboxProvider : MainAPI() {
         return shareToken to (uri.getQueryParameter("pid") ?: "0")
     }
 
-    private fun nodeUrl(token: String, node: JsonNode): String =
-        "telebox://$token/${node.path("id").asLong(0)}"
+    private fun nodeUrl(token: String, node: JsonNode): String {
+        val id = node.path("id").asLong(0)
+        return if (node.path("type").asText() == "dir") {
+            "$mainUrl/d/$token?pid=$id&tb=folder"
+        } else {
+            "telebox-file://$token/${node.path("item_id").asText("")}"
+        }
+    }
 
     private fun parseNodeUrl(url: String): Pair<String, String>? {
         val uri = Uri.parse(url)
-        if (uri.scheme != "telebox") return null
-        val token = uri.host.orEmpty()
-        val pid = uri.pathSegments.firstOrNull().orEmpty()
+        if (!(uri.host.orEmpty().contains("linkbox", true) || uri.host == "lbx.zone")) return null
+        val token = uri.pathSegments.lastOrNull().orEmpty()
+        val pid = uri.getQueryParameter("pid").orEmpty()
         if (token.isBlank() || pid.isBlank()) return null
         return token to pid
+    }
+
+    private fun fileItemId(url: String): String? {
+        val uri = Uri.parse(url)
+        if (uri.scheme != "telebox-file") return null
+        return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+    }
+
+    private suspend fun fileDetail(itemId: String): String? {
+        val url = "$mainUrl/api/file/detail?itemId=${encode(itemId)}&needUser=1&needTpInfo=1&platform=web&pf=web&lan=en"
+        val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
+        val body = http.newCall(request).execute().use { response -> response.body?.string().orEmpty() }
+        val root = mapper.readTree(body)
+        return directUrl(root.path("data").path("itemInfo"))
     }
 
     private suspend fun publicShareList(link: String): List<JsonNode> {
@@ -140,8 +160,11 @@ class TeleboxProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val direct = data.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-            ?: throw ErrorLoadingException("هذا الملف يحتاج رابط تشغيل مباشر من Linkbox؛ API المشاركة أعاد بيانات الملف فقط")
+        val direct = when {
+            fileItemId(data) != null -> fileDetail(fileItemId(data)!!)
+            data.startsWith("http://") || data.startsWith("https://") -> data
+            else -> null
+        } ?: throw ErrorLoadingException("Linkbox لم يعُد رابط تشغيل مباشر لهذا الملف")
         callback(
             newExtractorLink(
                 source = name,
