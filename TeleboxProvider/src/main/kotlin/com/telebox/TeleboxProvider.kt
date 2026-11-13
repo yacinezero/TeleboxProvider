@@ -140,11 +140,9 @@ class TeleboxProvider : MainAPI() {
             ?: return newMovieLoadResponse("Linkbox file", url, TvType.Movie, url)
         val nodes = publicShareList("$mainUrl/d/$token?pid=$pid")
         val episodes = nodes.mapIndexed { index, node ->
-            newEpisode(nodeUrl(token, node)) {
+            newEpisode(nodeUrl(token, node), {
                 name = displayName(node)
-                season = 1
-                episode = index + 1
-            }
+            }, false)
         }
         return newTvSeriesLoadResponse(
             name = "Linkbox folder",
@@ -162,7 +160,8 @@ class TeleboxProvider : MainAPI() {
     ): Boolean {
         val direct = when {
             fileItemId(data) != null -> fileDetail(fileItemId(data)!!)
-            data.startsWith("http://") || data.startsWith("https://") -> data
+            (data.startsWith("http://") || data.startsWith("https://")) &&
+                !data.contains("linkbox", true) && !data.contains("lbx.zone", true) -> data
             else -> null
         } ?: throw ErrorLoadingException("Linkbox لم يعُد رابط تشغيل مباشر لهذا الملف")
         callback(
