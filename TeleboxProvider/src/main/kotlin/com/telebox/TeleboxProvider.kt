@@ -75,6 +75,15 @@ class TeleboxProvider : MainAPI() {
         }
     }
 
+    private fun accountNodeUrl(node: JsonNode): String {
+        val id = node.path("id").asLong(0)
+        return if (node.path("type").asText() == "dir") {
+            "telebox-account://folder/$id"
+        } else {
+            "telebox-file://${savedToken}/${node.path("item_id").asText("")}"
+        }
+    }
+
     private fun parseNodeUrl(url: String): Pair<String, String>? {
         val uri = Uri.parse(url)
         if (!(uri.host.orEmpty().contains("linkbox", true) || uri.host == "lbx.zone")) return null
@@ -87,6 +96,12 @@ class TeleboxProvider : MainAPI() {
     private fun fileItemId(url: String): String? {
         val uri = Uri.parse(url)
         if (uri.scheme != "telebox-file") return null
+        return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun accountFolderId(url: String): String? {
+        val uri = Uri.parse(url)
+        if (uri.scheme != "telebox-account" || uri.host != "folder") return null
         return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
     }
 
@@ -114,6 +129,19 @@ class TeleboxProvider : MainAPI() {
         }
         val root = mapper.readTree(body)
         if (!root.has("data")) throw ErrorLoadingException("رابط المشاركة غير صالح أو منتهي")
+        return root.path("data").path("list").toList()
+    }
+
+    private suspend fun accountList(pid: String): List<JsonNode> {
+        if (savedToken.isBlank()) throw ErrorLoadingException("أدخل Token للحساب الخاص")
+        val url = "$mainUrl/api/open/file_search?pid=${encode(pid)}&name=&pageNo=1&pageSize=50&token=${encode(savedToken)}"
+        val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
+        val body = http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw ErrorLoadingException("Linkbox account API HTTP ${response.code}")
+            response.body?.string().orEmpty()
+        }
+        val root = mapper.readTree(body)
+        if (root.path("status").asInt(0) != 1) throw ErrorLoadingException("Token أو Folder ID غير صالح")
         return root.path("data").path("list").toList()
     }
 
@@ -146,25 +174,41 @@ class TeleboxProvider : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val link = savedShareUrl
-        if (link.isBlank()) return newHomePageResponse(emptyList(), false)
-        val (token, _) = shareParts(link)
-        val items = publicShareList(link).map { node ->
-            newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie)
+        if (link.isBlank() && savedToken.isBlank()) return newHomePageResponse(emptyList(), false)
+        val items = if (link.isNotBlank()) {
+            val (token, _) = shareParts(link)
+            publicShareList(link).map { node -> newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) }
+        } else {
+            val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+                ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
+            accountList(pid).map { node -> newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) }
         }
         return newHomePageResponse(listOf(HomePageList("Linkbox files", items)), false)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val link = if (query.trim().startsWith("http", true)) query.trim() else savedShareUrl
-        if (link.isBlank()) throw ErrorLoadingException("افتح إعدادات Telebox وأدخل رابط مشاركة Linkbox")
-        val nodes = publicShareList(link)
-        val (token, _) = shareParts(link)
-        return nodes.map { node ->
-            newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie)
+        if (link.isNotBlank()) {
+            val nodes = publicShareList(link)
+            val (token, _) = shareParts(link)
+            return nodes.map { node -> newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) }
         }
+        if (savedToken.isBlank()) throw ErrorLoadingException("أدخل رابطاً عاماً أو Token وFolder ID للحساب")
+        val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
+        return accountList(pid).map { node -> newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) }
     }
 
     override suspend fun load(url: String): LoadResponse {
+        val accountPid = accountFolderId(url)
+        if (accountPid != null) {
+            val videos = mutableListOf<Pair<JsonNode, String>>()
+            collectAccountVideos(accountPid, "", 0, videos)
+            return newTvSeriesLoadResponse(
+                "Linkbox account videos", url, TvType.TvSeries,
+                videos.map { (node, path) -> newEpisode(accountNodeUrl(node), { name = path }, false) }
+            )
+        }
         val (token, pid) = parseNodeUrl(url)
             ?: return newMovieLoadResponse("Linkbox file", url, TvType.Movie, url)
         val videos = mutableListOf<Pair<JsonNode, String>>()
@@ -180,6 +224,24 @@ class TeleboxProvider : MainAPI() {
             type = TvType.TvSeries,
             episodes = episodes
         )
+    }
+
+    private suspend fun collectAccountVideos(
+        pid: String,
+        folderPath: String,
+        depth: Int,
+        output: MutableList<Pair<JsonNode, String>>
+    ) {
+        if (depth > 4 || output.size >= 200) return
+        for (node in accountList(pid)) {
+            val name = displayName(node)
+            val path = if (folderPath.isBlank()) name else "$folderPath / $name"
+            if (node.path("type").asText() == "dir") {
+                collectAccountVideos(node.path("id").asText(), path, depth + 1, output)
+            } else if (node.path("item_id").asText().isNotBlank()) {
+                output += node to path
+            }
+        }
     }
 
     override suspend fun loadLinks(
