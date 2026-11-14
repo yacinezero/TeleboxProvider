@@ -13,6 +13,6 @@
     "tvTypes": ["Movie", "TvSeries", "Others"],
     "iconUrl": "https://www.linkbox.to/favicon.ico",
     "apiVersion": 1,
-    "fileHash": "sha256-be3a18e7237caf09d040dd6c45e401f12341d5acdea3f4ad7051dc1103842bb8"
+    "fileHash": "sha256-58bd36a27fd80735146591076424554595c7871d4513f75dbc702f85b567dd54"
   }
 ]
