@@ -69,22 +69,22 @@ class TeleboxProvider : MainAPI() {
     private fun nodeUrl(token: String, node: JsonNode): String {
         val id = node.path("id").asLong(0)
         val itemId = itemId(node)
-        val embedded = directUrl(node)?.let { "&url=${encode(it)}" }.orEmpty()
+        val embedded = directUrl(node)?.let { "&url=${encode(withFilename(it, displayName(node)))}" }.orEmpty()
         return if (isDirectory(node)) {
             "$mainUrl/d/$token?pid=$id&tb=folder"
         } else {
-            "$mainUrl/telebox-file?itemId=${encode(itemId)}&shareToken=${encode(token)}$embedded"
+            "$mainUrl/telebox-file?itemId=${encode(itemId)}&shareToken=${encode(token)}&name=${encode(displayName(node))}$embedded"
         }
     }
 
     private fun accountNodeUrl(node: JsonNode): String {
         val id = node.path("id").asLong(0)
         val itemId = itemId(node)
-        val embedded = directUrl(node)?.let { "&url=${encode(it)}" }.orEmpty()
+        val embedded = directUrl(node)?.let { "&url=${encode(withFilename(it, displayName(node)))}" }.orEmpty()
         return if (isDirectory(node)) {
             "$mainUrl/telebox-account/folder/$id"
         } else {
-            "$mainUrl/telebox-account/file/${encode(itemId)}$embedded"
+            "$mainUrl/telebox-account/file/${encode(itemId)}?name=${encode(displayName(node))}$embedded"
         }
     }
 
@@ -168,7 +168,27 @@ class TeleboxProvider : MainAPI() {
 
     private suspend fun accountList(pid: String): List<JsonNode> {
         if (savedToken.isBlank()) throw ErrorLoadingException("أدخل Token للحساب الخاص")
-        val url = "$mainUrl/api/open/file_search?pid=${encode(pid)}&name=&pageNo=1&pageSize=50&token=${encode(savedToken)}"
+        val result = mutableListOf<JsonNode>()
+        for (page in 1..100) {
+            val url = "$mainUrl/api/file/my_file_list/web?pid=${encode(pid)}&pageNo=$page&pageSize=1000&token=${encode(savedToken)}"
+            val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
+            val body = http.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw ErrorLoadingException("Linkbox account API HTTP ${response.code}")
+                response.body?.string().orEmpty()
+            }
+            val root = mapper.readTree(body)
+            if (root.path("status").asInt(0) != 1) return accountListLegacy(pid)
+            val pageItems = root.path("data").path("list").toList()
+                .filter { it.path("pid").asText(pid) == pid }
+            result += pageItems
+            if (pageItems.size < 1000) break
+        }
+        if (result.isEmpty() && pid != "0") return accountListLegacy(pid)
+        return result
+    }
+
+    private suspend fun accountListLegacy(pid: String): List<JsonNode> {
+        val url = "$mainUrl/api/open/file_search?pid=${encode(pid)}&name=&pageNo=1&pageSize=1000&token=${encode(savedToken)}"
         val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
         val body = http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw ErrorLoadingException("Linkbox account API HTTP ${response.code}")
@@ -186,7 +206,7 @@ class TeleboxProvider : MainAPI() {
         depth: Int,
         output: MutableList<Pair<JsonNode, String>>
     ) {
-        if (depth > 4 || output.size >= 200) return
+        if (depth > 12 || output.size >= 2000) return
         for (node in listByTokenPid(token, pid)) {
             val name = displayName(node)
             val path = if (folderPath.isBlank()) name else "$folderPath / $name"
@@ -205,6 +225,11 @@ class TeleboxProvider : MainAPI() {
         listOf("url", "downloadUrl", "dlink", "download_url").asSequence()
             .map { node.path(it).asText("") }
             .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+
+    private fun withFilename(url: String, name: String): String {
+        if (name.isBlank() || url.contains("filename=", true)) return url
+        return Uri.parse(url).buildUpon().appendQueryParameter("filename", name).build().toString()
+    }
 
     private fun directUrlDeep(node: JsonNode): String? {
         if (node.isObject) {
@@ -297,7 +322,7 @@ class TeleboxProvider : MainAPI() {
         season: Int,
         output: MutableList<Triple<JsonNode, String, Int>>
     ) {
-        if (depth > 4 || output.size >= 200) return
+        if (depth > 12 || output.size >= 2000) return
         var nextSeason = 1
         for (node in accountList(pid)) {
             val name = displayName(node)
