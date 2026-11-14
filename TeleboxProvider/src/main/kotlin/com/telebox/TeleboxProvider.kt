@@ -257,11 +257,17 @@ class TeleboxProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val accountPid = accountFolderId(url)
         if (accountPid != null) {
-            val videos = mutableListOf<Pair<JsonNode, String>>()
-            collectAccountVideos(accountPid, "", 0, videos)
+            val videos = mutableListOf<Triple<JsonNode, String, Int>>()
+            collectAccountVideos(accountPid, "", 0, 1, videos)
             return newTvSeriesLoadResponse(
                 "Linkbox account videos", url, TvType.TvSeries,
-                videos.map { (node, path) -> newEpisode(accountNodeUrl(node), { name = path }, false) }
+                videos.mapIndexed { index, (node, path, season) ->
+                    newEpisode(accountNodeUrl(node), {
+                        name = path
+                        this.season = season
+                        this.episode = index + 1
+                    }, false)
+                }
             )
         }
         val (token, pid) = parseNodeUrl(url)
@@ -285,18 +291,30 @@ class TeleboxProvider : MainAPI() {
         pid: String,
         folderPath: String,
         depth: Int,
-        output: MutableList<Pair<JsonNode, String>>
+        season: Int,
+        output: MutableList<Triple<JsonNode, String, Int>>
     ) {
         if (depth > 4 || output.size >= 200) return
+        var nextSeason = 1
         for (node in accountList(pid)) {
             val name = displayName(node)
             val path = if (folderPath.isBlank()) name else "$folderPath / $name"
             if (isDirectory(node)) {
-                collectAccountVideos(node.path("id").asText(), path, depth + 1, output)
-            } else if (itemId(node).isNotBlank()) {
-                output += node to path
+                val childSeason = if (depth == 0) nextSeason++ else season
+                collectAccountVideos(node.path("id").asText(), path, depth + 1, childSeason, output)
+            } else if (isVideoFile(node)) {
+                output += Triple(node, path, season)
             }
         }
+    }
+
+    private fun isVideoFile(node: JsonNode): Boolean {
+        val type = node.path("type").asText("").lowercase()
+        val name = displayName(node).lowercase()
+        return itemId(node).isNotBlank() && (
+            type == "video" || type == "vid" ||
+                listOf(".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".ts", ".m3u8").any(name::endsWith)
+            )
     }
 
     override suspend fun loadLinks(
