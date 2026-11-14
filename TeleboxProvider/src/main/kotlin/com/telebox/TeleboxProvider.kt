@@ -120,7 +120,7 @@ class TeleboxProvider : MainAPI() {
 
     private fun isDirectory(node: JsonNode): Boolean {
         val type = node.path("type").asText("").lowercase()
-        return type == "dir" || type == "folder" || type == "directory" || type == "1" ||
+        return type == "dir" || type == "sdir" || type == "folder" || type == "directory" || type == "1" ||
             (node.path("id").asText("").isNotBlank() && itemId(node).isBlank())
     }
 
