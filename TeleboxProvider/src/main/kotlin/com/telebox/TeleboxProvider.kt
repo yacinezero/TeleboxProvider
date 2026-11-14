@@ -82,9 +82,9 @@ class TeleboxProvider : MainAPI() {
         val itemId = itemId(node)
         val embedded = directUrl(node)?.let { "&url=${encode(it)}" }.orEmpty()
         return if (isDirectory(node)) {
-            "$mainUrl/telebox-account?pid=$id"
+            "$mainUrl/telebox-account/folder/$id"
         } else {
-            "$mainUrl/telebox-file?itemId=${encode(itemId)}$embedded"
+            "$mainUrl/telebox-account/file/${encode(itemId)}$embedded"
         }
     }
 
@@ -100,6 +100,9 @@ class TeleboxProvider : MainAPI() {
     private fun fileItemId(url: String): String? {
         val uri = Uri.parse(url)
         if (uri.scheme == "telebox-file") return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        if (uri.host.orEmpty().contains("linkbox", true) && uri.pathSegments.firstOrNull() == "telebox-account" && uri.pathSegments.getOrNull(1) == "file") {
+            return uri.pathSegments.getOrNull(2)?.takeIf { it.isNotBlank() }
+        }
         if (uri.host.orEmpty().contains("linkbox", true) && uri.path == "/telebox-file") {
             return uri.getQueryParameter("itemId")?.takeIf { it.isNotBlank() }
         }
@@ -125,6 +128,9 @@ class TeleboxProvider : MainAPI() {
         val uri = Uri.parse(url)
         if (uri.scheme == "telebox-account" && uri.host == "folder") {
             return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        }
+        if (uri.host.orEmpty().contains("linkbox", true) && uri.pathSegments.firstOrNull() == "telebox-account" && uri.pathSegments.getOrNull(1) == "folder") {
+            return uri.pathSegments.getOrNull(2)?.takeIf { it.isNotBlank() }
         }
         if (uri.host.orEmpty().contains("linkbox", true) && uri.path == "/telebox-account") {
             return uri.getQueryParameter("pid")?.takeIf { it.isNotBlank() }
