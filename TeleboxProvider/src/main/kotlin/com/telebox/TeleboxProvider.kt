@@ -69,22 +69,22 @@ class TeleboxProvider : MainAPI() {
     private fun nodeUrl(token: String, node: JsonNode): String {
         val id = node.path("id").asLong(0)
         val itemId = itemId(node)
-        val embedded = directUrl(node)?.let { "?url=${encode(it)}" }.orEmpty()
+        val embedded = directUrl(node)?.let { "&url=${encode(it)}" }.orEmpty()
         return if (isDirectory(node)) {
             "$mainUrl/d/$token?pid=$id&tb=folder"
         } else {
-            "telebox-file://$token/$itemId$embedded"
+            "$mainUrl/telebox-file?itemId=${encode(itemId)}&shareToken=${encode(token)}$embedded"
         }
     }
 
     private fun accountNodeUrl(node: JsonNode): String {
         val id = node.path("id").asLong(0)
         val itemId = itemId(node)
-        val embedded = directUrl(node)?.let { "?url=${encode(it)}" }.orEmpty()
+        val embedded = directUrl(node)?.let { "&url=${encode(it)}" }.orEmpty()
         return if (isDirectory(node)) {
-            "telebox-account://folder/$id"
+            "$mainUrl/telebox-account?pid=$id"
         } else {
-            "telebox-file://${savedToken}/$itemId$embedded"
+            "$mainUrl/telebox-file?itemId=${encode(itemId)}$embedded"
         }
     }
 
@@ -99,8 +99,11 @@ class TeleboxProvider : MainAPI() {
 
     private fun fileItemId(url: String): String? {
         val uri = Uri.parse(url)
-        if (uri.scheme != "telebox-file") return null
-        return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        if (uri.scheme == "telebox-file") return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        if (uri.host.orEmpty().contains("linkbox", true) && uri.path == "/telebox-file") {
+            return uri.getQueryParameter("itemId")?.takeIf { it.isNotBlank() }
+        }
+        return null
     }
 
     private fun embeddedUrl(url: String): String? = Uri.parse(url).getQueryParameter("url")
@@ -120,8 +123,13 @@ class TeleboxProvider : MainAPI() {
 
     private fun accountFolderId(url: String): String? {
         val uri = Uri.parse(url)
-        if (uri.scheme != "telebox-account" || uri.host != "folder") return null
-        return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        if (uri.scheme == "telebox-account" && uri.host == "folder") {
+            return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        }
+        if (uri.host.orEmpty().contains("linkbox", true) && uri.path == "/telebox-account") {
+            return uri.getQueryParameter("pid")?.takeIf { it.isNotBlank() }
+        }
+        return null
     }
 
     private suspend fun fileDetail(itemId: String): String? {
