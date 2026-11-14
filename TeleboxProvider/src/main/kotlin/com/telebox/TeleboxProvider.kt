@@ -259,13 +259,16 @@ class TeleboxProvider : MainAPI() {
         if (accountPid != null) {
             val videos = mutableListOf<Triple<JsonNode, String, Int>>()
             collectAccountVideos(accountPid, "", 0, 1, videos)
+            val episodeNumbers = mutableMapOf<Int, Int>()
             return newTvSeriesLoadResponse(
                 "Linkbox account videos", url, TvType.TvSeries,
-                videos.mapIndexed { index, (node, path, season) ->
+                videos.map { (node, path, season) ->
+                    val episodeNumber = (episodeNumbers[season] ?: 0) + 1
+                    episodeNumbers[season] = episodeNumber
                     newEpisode(accountNodeUrl(node), {
                         name = path
                         this.season = season
-                        this.episode = index + 1
+                        this.episode = episodeNumber
                     }, false)
                 }
             )
