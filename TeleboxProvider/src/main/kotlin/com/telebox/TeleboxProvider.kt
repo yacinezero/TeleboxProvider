@@ -68,19 +68,23 @@ class TeleboxProvider : MainAPI() {
 
     private fun nodeUrl(token: String, node: JsonNode): String {
         val id = node.path("id").asLong(0)
+        val itemId = node.path("item_id").asText("")
+        val embedded = directUrl(node)?.let { "?url=${encode(it)}" }.orEmpty()
         return if (node.path("type").asText() == "dir") {
             "$mainUrl/d/$token?pid=$id&tb=folder"
         } else {
-            "telebox-file://$token/${node.path("item_id").asText("")}"
+            "telebox-file://$token/$itemId$embedded"
         }
     }
 
     private fun accountNodeUrl(node: JsonNode): String {
         val id = node.path("id").asLong(0)
+        val itemId = node.path("item_id").asText("")
+        val embedded = directUrl(node)?.let { "?url=${encode(it)}" }.orEmpty()
         return if (node.path("type").asText() == "dir") {
             "telebox-account://folder/$id"
         } else {
-            "telebox-file://${savedToken}/${node.path("item_id").asText("")}"
+            "telebox-file://${savedToken}/$itemId$embedded"
         }
     }
 
@@ -99,6 +103,8 @@ class TeleboxProvider : MainAPI() {
         return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
     }
 
+    private fun embeddedUrl(url: String): String? = Uri.parse(url).getQueryParameter("url")
+
     private fun accountFolderId(url: String): String? {
         val uri = Uri.parse(url)
         if (uri.scheme != "telebox-account" || uri.host != "folder") return null
@@ -111,7 +117,8 @@ class TeleboxProvider : MainAPI() {
         val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
         val body = http.newCall(request).execute().use { response -> response.body?.string().orEmpty() }
         val root = mapper.readTree(body)
-        return directUrl(root.path("data").path("itemInfo"))
+        val item = root.path("data").path("itemInfo")
+        return directUrl(item) ?: directUrlDeep(item)
     }
 
     private suspend fun publicShareList(link: String): List<JsonNode> {
@@ -171,6 +178,27 @@ class TeleboxProvider : MainAPI() {
         listOf("url", "downloadUrl", "dlink", "download_url").asSequence()
             .map { node.path(it).asText("") }
             .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+
+    private fun directUrlDeep(node: JsonNode): String? {
+        if (node.isObject) {
+            val preferred = node.fields().asSequence()
+                .filter { entry ->
+                    entry.key.contains("url", true) || entry.key.contains("link", true) ||
+                        entry.key.contains("play", true) || entry.key.contains("download", true)
+                }
+                .map { it.value.asText("") }
+                .firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+            if (preferred != null) return preferred
+            val nested = node.fields().asSequence()
+                .mapNotNull { directUrlDeep(it.value) }
+                .firstOrNull()
+            if (nested != null) return nested
+        } else if (node.isArray) {
+            val nested = node.asSequence().mapNotNull { directUrlDeep(it) }.firstOrNull()
+            if (nested != null) return nested
+        }
+        return null
+    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val link = savedShareUrl
@@ -251,6 +279,7 @@ class TeleboxProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val direct = when {
+            embeddedUrl(data)?.let { it.startsWith("http://") || it.startsWith("https://") } == true -> embeddedUrl(data)
             fileItemId(data) != null -> fileDetail(fileItemId(data)!!)
             (data.startsWith("http://") || data.startsWith("https://")) &&
                 !data.contains("linkbox", true) && !data.contains("lbx.zone", true) -> data

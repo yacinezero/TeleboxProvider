@@ -23,7 +23,7 @@ class TeleboxSettingsFragment : DialogFragment() {
         }
 
         val help = TextView(context).apply {
-            text = "الصق رابط مشاركة Linkbox العام هنا. يمكن ترك Token وFolder ID فارغين عند استخدام رابط عام."
+            text = "لملفات حسابك المحفوظة: اترك رابط المشاركة فارغاً، وأدخل Token الحساب وFolder ID. الرابط العام اختياري فقط."
             setPadding(0, 0, 0, (12 * density).toInt())
         }
         val shareUrl = EditText(context).apply {
@@ -33,13 +33,13 @@ class TeleboxSettingsFragment : DialogFragment() {
             isSingleLine = true
         }
         val token = EditText(context).apply {
-            hint = "Telebox API Token (اختياري)"
+            hint = "Telebox API Token للحساب"
             setText(prefs.getString(TeleboxPlugin.KEY_TOKEN, "") ?: "")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             isSingleLine = true
         }
         val folderId = EditText(context).apply {
-            hint = "Folder ID (اختياري، الافتراضي 0)"
+            hint = "Folder ID في حسابك (0 للمجلد الرئيسي)"
             setText(prefs.getString(TeleboxPlugin.KEY_FOLDER_ID, "0") ?: "0")
             inputType = InputType.TYPE_CLASS_NUMBER
             isSingleLine = true
