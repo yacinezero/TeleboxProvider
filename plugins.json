@@ -1,18 +1,18 @@
 [
   {
-    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v5.9/TeleboxProvider.cs3",
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v6.0/TeleboxProvider.cs3",
     "status": 1,
-    "version": 14,
+    "version": 15,
     "name": "Telebox / Linkbox",
     "internalName": "TeleboxProvider",
     "authors": ["yacinezero"],
-    "description": "Account-first playback for saved Linkbox files using Token and Folder ID; public shares remain optional.",
-    "fileSize": 21693,
+    "description": "Browse and play saved Linkbox account files with Token and Folder ID; supports API folder and file identifier variants.",
+    "fileSize": 22013,
     "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider",
     "language": "all",
     "tvTypes": ["Movie", "TvSeries", "Others"],
     "iconUrl": "https://www.linkbox.to/favicon.ico",
     "apiVersion": 1,
-    "fileHash": "sha256-7955c84aeb9f710f0fd92d34a69ded8e580491c315cc8adf501ccb6c5a573318"
+    "fileHash": "sha256-1ff9d9484f3a9ff0ddf531213ffbfb90dcf539e5ead6060d5001158d5997a862"
   }
 ]

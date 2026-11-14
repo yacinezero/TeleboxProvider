@@ -68,9 +68,9 @@ class TeleboxProvider : MainAPI() {
 
     private fun nodeUrl(token: String, node: JsonNode): String {
         val id = node.path("id").asLong(0)
-        val itemId = node.path("item_id").asText("")
+        val itemId = itemId(node)
         val embedded = directUrl(node)?.let { "?url=${encode(it)}" }.orEmpty()
-        return if (node.path("type").asText() == "dir") {
+        return if (isDirectory(node)) {
             "$mainUrl/d/$token?pid=$id&tb=folder"
         } else {
             "telebox-file://$token/$itemId$embedded"
@@ -79,9 +79,9 @@ class TeleboxProvider : MainAPI() {
 
     private fun accountNodeUrl(node: JsonNode): String {
         val id = node.path("id").asLong(0)
-        val itemId = node.path("item_id").asText("")
+        val itemId = itemId(node)
         val embedded = directUrl(node)?.let { "?url=${encode(it)}" }.orEmpty()
-        return if (node.path("type").asText() == "dir") {
+        return if (isDirectory(node)) {
             "telebox-account://folder/$id"
         } else {
             "telebox-file://${savedToken}/$itemId$embedded"
@@ -104,6 +104,19 @@ class TeleboxProvider : MainAPI() {
     }
 
     private fun embeddedUrl(url: String): String? = Uri.parse(url).getQueryParameter("url")
+
+    private fun itemId(node: JsonNode): String =
+        listOf("item_id", "itemId", "item_rid", "itemRid", "rid")
+            .asSequence()
+            .map { node.path(it).asText("") }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+
+    private fun isDirectory(node: JsonNode): Boolean {
+        val type = node.path("type").asText("").lowercase()
+        return type == "dir" || type == "folder" || type == "directory" || type == "1" ||
+            (node.path("id").asText("").isNotBlank() && itemId(node).isBlank())
+    }
 
     private fun accountFolderId(url: String): String? {
         val uri = Uri.parse(url)
@@ -163,9 +176,9 @@ class TeleboxProvider : MainAPI() {
         for (node in listByTokenPid(token, pid)) {
             val name = displayName(node)
             val path = if (folderPath.isBlank()) name else "$folderPath / $name"
-            if (node.path("type").asText() == "dir") {
+            if (isDirectory(node)) {
                 collectVideos(token, node.path("id").asText(), path, depth + 1, output)
-            } else if (node.path("type").asText() == "video" || node.path("item_id").asText().isNotBlank()) {
+            } else if (node.path("type").asText().lowercase() == "video" || itemId(node).isNotBlank()) {
                 output += node to path
             }
         }
@@ -264,9 +277,9 @@ class TeleboxProvider : MainAPI() {
         for (node in accountList(pid)) {
             val name = displayName(node)
             val path = if (folderPath.isBlank()) name else "$folderPath / $name"
-            if (node.path("type").asText() == "dir") {
+            if (isDirectory(node)) {
                 collectAccountVideos(node.path("id").asText(), path, depth + 1, output)
-            } else if (node.path("item_id").asText().isNotBlank()) {
+            } else if (itemId(node).isNotBlank()) {
                 output += node to path
             }
         }
