@@ -52,6 +52,11 @@ class TeleboxProvider : MainAPI() {
         get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
             ?.getString(TeleboxPlugin.KEY_TOKEN, "")?.trim().orEmpty()
 
+    private val hasPrivateLogin: Boolean
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.let { it.getString(TeleboxPlugin.KEY_EMAIL, "").orEmpty().isNotBlank() &&
+                it.getString(TeleboxPlugin.KEY_PASSWORD, "").orEmpty().isNotBlank() } == true
+
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
     private fun shareParts(link: String): Pair<String, String> {
@@ -69,22 +74,20 @@ class TeleboxProvider : MainAPI() {
     private fun nodeUrl(token: String, node: JsonNode): String {
         val id = node.path("id").asLong(0)
         val itemId = itemId(node)
-        val embedded = directUrl(node)?.let { "&url=${encode(withFilename(it, displayName(node)))}" }.orEmpty()
         return if (isDirectory(node)) {
             "$mainUrl/d/$token?pid=$id&tb=folder"
         } else {
-            "$mainUrl/telebox-file?itemId=${encode(itemId)}&shareToken=${encode(token)}&name=${encode(displayName(node))}$embedded"
+            "$mainUrl/telebox-file?itemId=${encode(itemId)}&shareToken=${encode(token)}&name=${encode(displayName(node))}"
         }
     }
 
     private fun accountNodeUrl(node: JsonNode): String {
         val id = node.path("id").asLong(0)
         val itemId = itemId(node)
-        val embedded = directUrl(node)?.let { "&url=${encode(withFilename(it, displayName(node)))}" }.orEmpty()
         return if (isDirectory(node)) {
             "$mainUrl/telebox-account/folder/$id"
         } else {
-            "$mainUrl/telebox-account/file/${encode(itemId)}?name=${encode(displayName(node))}$embedded"
+            "$mainUrl/telebox-account/file/${encode(itemId)}?pid=${encode(node.path("pid").asText("0"))}&name=${encode(displayName(node))}"
         }
     }
 
@@ -105,6 +108,16 @@ class TeleboxProvider : MainAPI() {
         }
         if (uri.host.orEmpty().contains("linkbox", true) && uri.path == "/telebox-file") {
             return uri.getQueryParameter("itemId")?.takeIf { it.isNotBlank() }
+        }
+        return null
+    }
+
+    private fun accountFilePid(url: String): String? {
+        val uri = Uri.parse(url)
+        if (uri.host.orEmpty().contains("linkbox", true) &&
+            uri.pathSegments.firstOrNull() == "telebox-account" &&
+            uri.pathSegments.getOrNull(1) == "file") {
+            return uri.getQueryParameter("pid")?.takeIf { it.isNotBlank() }
         }
         return null
     }
@@ -139,9 +152,13 @@ class TeleboxProvider : MainAPI() {
     }
 
     private suspend fun fileDetail(itemId: String): String? {
-        val token = savedToken.takeIf { it.isNotBlank() }?.let { "&token=${encode(it)}" }.orEmpty()
+        val context = appContext
+        val tokenValue = if (context != null) {
+            runCatching { LinkboxSession.webToken(context) }.getOrNull()
+        } else null
+        val token = (tokenValue ?: savedToken).takeIf { it.isNotBlank() }?.let { "&token=${encode(it)}" }.orEmpty()
         val url = "$mainUrl/api/file/detail?itemId=${encode(itemId)}&needUser=1&needTpInfo=1&platform=web&pf=web&lan=en$token"
-        val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
+        val request = Request.Builder().url(url).header("User-Agent", BROWSER_UA).build()
         val body = http.newCall(request).execute().use { response -> response.body?.string().orEmpty() }
         val root = mapper.readTree(body)
         val item = root.path("data").path("itemInfo")
@@ -167,23 +184,23 @@ class TeleboxProvider : MainAPI() {
     }
 
     private suspend fun accountList(pid: String): List<JsonNode> {
-        if (savedToken.isBlank()) throw ErrorLoadingException("أدخل Token للحساب الخاص")
+        val context = appContext ?: throw ErrorLoadingException("CloudStream Context غير متاح")
+        val webToken = LinkboxSession.webToken(context)
         val result = mutableListOf<JsonNode>()
         for (page in 1..100) {
-            val url = "$mainUrl/api/file/my_file_list/web?pid=${encode(pid)}&pageNo=$page&pageSize=1000&token=${encode(savedToken)}"
-            val request = Request.Builder().url(url).header("User-Agent", "CloudStream-TeleboxProvider/1").build()
+            val url = "$mainUrl/api/file/my_file_list/web?pid=${encode(pid)}&pageNo=$page&pageSize=100&sortField=utime&sortAsc=0&platform=web&pf=web&lan=en&token=${encode(webToken)}"
+            val request = Request.Builder().url(url).header("User-Agent", BROWSER_UA).build()
             val body = http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw ErrorLoadingException("Linkbox account API HTTP ${response.code}")
                 response.body?.string().orEmpty()
             }
             val root = mapper.readTree(body)
-            if (root.path("status").asInt(0) != 1) return accountListLegacy(pid)
+            if (root.path("status").asInt(0) != 1) throw ErrorLoadingException(root.path("msg").asText("جلسة Linkbox منتهية أو غير صالحة"))
             val pageItems = root.path("data").path("list").toList()
                 .filter { it.path("pid").asText(pid) == pid }
             result += pageItems
             if (pageItems.size < 1000) break
         }
-        if (result.isEmpty() && pid != "0") return accountListLegacy(pid)
         return result
     }
 
@@ -254,7 +271,7 @@ class TeleboxProvider : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val link = savedShareUrl
-        if (link.isBlank() && savedToken.isBlank()) return newHomePageResponse(emptyList(), false)
+        if (link.isBlank() && !hasPrivateLogin) return newHomePageResponse(emptyList(), false)
         val items = if (link.isNotBlank()) {
             val (token, _) = shareParts(link)
             publicShareList(link).map { node -> newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) }
@@ -273,7 +290,7 @@ class TeleboxProvider : MainAPI() {
             val (token, _) = shareParts(link)
             return nodes.map { node -> newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) }
         }
-        if (savedToken.isBlank()) throw ErrorLoadingException("أدخل رابطاً عاماً أو Token وFolder ID للحساب")
+        if (!hasPrivateLogin) throw ErrorLoadingException("أدخل البريد والمرور للحساب الخاص أو رابطاً عاماً")
         val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
             ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
         return accountList(pid).map { node -> newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) }
@@ -353,7 +370,15 @@ class TeleboxProvider : MainAPI() {
     ): Boolean {
         val direct = when {
             embeddedUrl(data)?.let { it.startsWith("http://") || it.startsWith("https://") } == true -> embeddedUrl(data)
-            fileItemId(data) != null -> fileDetail(fileItemId(data)!!)
+            fileItemId(data) != null -> {
+                val id = fileItemId(data)!!
+                val fileName = Uri.parse(data).getQueryParameter("name").orEmpty()
+                val fresh = accountFilePid(data)?.let { pid ->
+                    accountList(pid).firstOrNull { itemId(it) == id }?.let { directUrl(it) }
+                }
+                withFilename(fresh ?: fileDetail(id).orEmpty(), fileName)
+                    .takeIf { it.startsWith("http") }
+            }
             (data.startsWith("http://") || data.startsWith("https://")) &&
                 !data.contains("linkbox", true) && !data.contains("lbx.zone", true) -> data
             else -> null
@@ -366,6 +391,11 @@ class TeleboxProvider : MainAPI() {
                 type = if (direct.contains(".m3u8", true)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
             ) {
                 referer = mainUrl
+                headers = mapOf(
+                    "User-Agent" to BROWSER_UA,
+                    "Accept" to "*/*",
+                    "Accept-Language" to "en-US,en;q=0.9"
+                )
                 quality = Qualities.Unknown.value
             }
         )
@@ -373,6 +403,7 @@ class TeleboxProvider : MainAPI() {
     }
 
     companion object {
+        const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36"
         @Volatile
         var appContext: Context? = null
 

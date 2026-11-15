@@ -1,18 +1,18 @@
 [
   {
-    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v6.5/TeleboxProvider.cs3",
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v7.0/TeleboxProvider.cs3",
     "status": 1,
-    "version": 19,
+    "version": 20,
     "name": "Telebox / Linkbox",
     "internalName": "TeleboxProvider",
     "authors": ["yacinezero"],
-    "description": "Organize saved Linkbox account videos by folder and filter non-video files and resolve CDN links with pagination.",
-    "fileSize": 24477,
+    "description": "Organize saved Linkbox account videos by folder and email web-session login, paginated folders, and fresh CDN playback resolution.",
+    "fileSize": 29773,
     "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider",
     "language": "all",
     "tvTypes": ["Movie", "TvSeries", "Others"],
     "iconUrl": "https://www.linkbox.to/favicon.ico",
     "apiVersion": 1,
-    "fileHash": "sha256-82e0fbb71f9f5a1b38794764a55bdc1aad11e5958f9ff5b84ac76145b016b0c9"
+    "fileHash": "sha256-b30894e4120c377e1d43f93825301f5f1360cdd7e43c98d6779c776c090cd94b"
   }
 ]

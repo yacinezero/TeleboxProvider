@@ -1,10 +1,10 @@
-version = 1
+version = 20
 
 cloudstream {
-    description = "Experimental Telebox/Linkbox provider; API and playback are not yet verified"
+    description = "Linkbox account provider with email web-session login, paginated folders, and fresh CDN playback resolution"
     authors = listOf("yacinezero")
-    status = 3
+    status = 1
     tvTypes = listOf("Movie", "TvSeries", "Others")
     iconUrl = "https://www.linkbox.to/favicon.ico"
-    isCrossPlatform = true
+    isCrossPlatform = false
 }

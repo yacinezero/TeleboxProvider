@@ -23,8 +23,20 @@ class TeleboxSettingsFragment : DialogFragment() {
         }
 
         val help = TextView(context).apply {
-            text = "لملفات حسابك المحفوظة: اترك رابط المشاركة فارغاً، وأدخل Token الحساب وFolder ID. الرابط العام اختياري فقط."
+            text = "للتشغيل الموثوق أدخل بريد وكلمة مرور Linkbox. يمكن استعمال Token القديم للتصفح الاحتياطي فقط."
             setPadding(0, 0, 0, (12 * density).toInt())
+        }
+        val email = EditText(context).apply {
+            hint = "البريد الإلكتروني في Linkbox (مطلوب للحساب الخاص)"
+            setText(prefs.getString(TeleboxPlugin.KEY_EMAIL, "") ?: "")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            isSingleLine = true
+        }
+        val password = EditText(context).apply {
+            hint = "كلمة مرور Linkbox"
+            setText(prefs.getString(TeleboxPlugin.KEY_PASSWORD, "") ?: "")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSingleLine = true
         }
         val shareUrl = EditText(context).apply {
             hint = "رابط Linkbox العام"
@@ -45,6 +57,8 @@ class TeleboxSettingsFragment : DialogFragment() {
             isSingleLine = true
         }
         layout.addView(help)
+        layout.addView(email)
+        layout.addView(password)
         layout.addView(shareUrl)
         layout.addView(token)
         layout.addView(folderId)
@@ -55,10 +69,13 @@ class TeleboxSettingsFragment : DialogFragment() {
             .setNegativeButton("إلغاء", null)
             .setPositiveButton("حفظ") { _, _ ->
                 prefs.edit()
+                    .putString(TeleboxPlugin.KEY_EMAIL, email.text.toString().trim())
+                    .putString(TeleboxPlugin.KEY_PASSWORD, password.text.toString())
                     .putString(TeleboxPlugin.KEY_SHARE_URL, shareUrl.text.toString().trim())
                     .putString(TeleboxPlugin.KEY_TOKEN, token.text.toString().trim())
                     .putString(TeleboxPlugin.KEY_FOLDER_ID, folderId.text.toString().trim().ifBlank { "0" })
                     .apply()
+                LinkboxSession.invalidate(context)
                 TeleboxProvider.reloadSettings()
             }
             .create().also { dialog ->

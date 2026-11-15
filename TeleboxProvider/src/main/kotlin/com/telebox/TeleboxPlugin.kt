@@ -24,5 +24,10 @@ class TeleboxPlugin : Plugin() {
         const val KEY_SHARE_URL = "share_url"
         const val KEY_TOKEN = "api_token"
         const val KEY_FOLDER_ID = "folder_id"
+        const val KEY_EMAIL = "email"
+        const val KEY_PASSWORD = "password"
+        const val KEY_WEB_TOKEN = "web_token"
+        const val KEY_WEB_TOKEN_ISSUED_AT = "web_token_issued_at"
+        const val KEY_SESSION_UID = "session_uid"
     }
 }
