@@ -197,11 +197,13 @@ class TeleboxProvider : MainAPI() {
         return root.path("data").path("list").toList()
     }
 
-    private suspend fun accountList(pid: String): List<JsonNode> {
+    private suspend fun accountList(pid: String, forceRefresh: Boolean = false): List<JsonNode> {
         val context = appContext ?: throw ErrorLoadingException("CloudStream Context غير متاح")
         val cacheKey = "$savedEmail:$pid"
         val now = System.currentTimeMillis()
-        accountListCache[cacheKey]?.takeIf { it.expiresAt > now }?.let { return it.items }
+        if (!forceRefresh) {
+            accountListCache[cacheKey]?.takeIf { it.expiresAt > now }?.let { return it.items }
+        }
         val result = mutableListOf<JsonNode>()
         var webToken = LinkboxSession.webToken(context)
         var retriedSession = false
@@ -421,7 +423,7 @@ class TeleboxProvider : MainAPI() {
                 val id = fileItemId(data)!!
                 val fileName = Uri.parse(data).getQueryParameter("name").orEmpty()
                 val fresh = accountFilePid(data)?.let { pid ->
-                    accountList(pid).firstOrNull { itemId(it) == id }?.let { directUrl(it) }
+                    accountList(pid, forceRefresh = true).firstOrNull { itemId(it) == id }?.let { directUrl(it) }
                 }
                 withFilename(fresh ?: fileDetail(id).orEmpty(), fileName)
                     .takeIf { it.startsWith("http") }
