@@ -1,0 +1,17 @@
+[
+  {
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v7.4-test/TeleboxProvider.cs3",
+    "status": 1,
+    "version": 24,
+    "name": "Telebox / Linkbox (v7.4 test)",
+    "internalName": "TeleboxProvider",
+    "authors": ["yacinezero"],
+    "description": "Experimental folder-first titles and optional posters. v7.3 remains the stable fallback.",
+    "fileSize": 44061,
+    "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider/tree/feature/v7.4-improvements",
+    "language": "all",
+    "tvTypes": ["Movie", "TvSeries", "Others"],
+    "iconUrl": "https://www.linkbox.to/favicon.ico",
+    "apiVersion": 1
+  }
+]

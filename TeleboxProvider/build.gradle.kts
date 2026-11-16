@@ -1,7 +1,7 @@
-version = 20
+version = 24
 
 cloudstream {
-    description = "Linkbox account provider with email web-session login, paginated folders, and fresh CDN playback resolution"
+    description = "Experimental v7.4: folder-first titles, optional metadata posters, and rclone-style Linkbox login"
     authors = listOf("yacinezero")
     status = 1
     tvTypes = listOf("Movie", "TvSeries", "Others")

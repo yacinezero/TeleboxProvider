@@ -1,0 +1,9 @@
+{
+  "name": "Telebox / Linkbox v7.4 Test",
+  "description": "Experimental test channel. Stable v7.3 remains available in the main repository.",
+  "iconUrl": "https://www.linkbox.to/favicon.ico",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/yacinezero/TeleboxProvider/feature/v7.4-improvements/plugins-v7.4-test.json"
+  ]
+}
