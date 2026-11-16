@@ -8,6 +8,8 @@ import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.ScrollView
+import android.widget.Switch
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 
@@ -56,16 +58,33 @@ class TeleboxSettingsFragment : DialogFragment() {
             inputType = InputType.TYPE_CLASS_NUMBER
             isSingleLine = true
         }
+        val tmdbKey = EditText(context).apply {
+            hint = "TMDB API Key (اختياري للبوسترات)"
+            setText(prefs.getString(TeleboxPlugin.KEY_TMDB_KEY, "") ?: "")
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSingleLine = true
+        }
+        val posters = Switch(context).apply {
+            text = "تفعيل البوسترات (لا يوقف التصفح عند الفشل)"
+            isChecked = prefs.getBoolean(TeleboxPlugin.KEY_POSTERS_ENABLED, true)
+        }
+        val randomRows = Switch(context).apply {
+            text = "ترتيب عشوائي للصفوف"
+            isChecked = prefs.getBoolean(TeleboxPlugin.KEY_RANDOM_ROWS, false)
+        }
         layout.addView(help)
         layout.addView(email)
         layout.addView(password)
         layout.addView(shareUrl)
         layout.addView(token)
         layout.addView(folderId)
+        layout.addView(tmdbKey)
+        layout.addView(posters)
+        layout.addView(randomRows)
 
         return AlertDialog.Builder(context)
             .setTitle("Telebox / Linkbox Settings")
-            .setView(layout)
+            .setView(ScrollView(context).apply { addView(layout) })
             .setNegativeButton("إلغاء", null)
             .setPositiveButton("حفظ") { _, _ ->
                 prefs.edit()
@@ -74,6 +93,9 @@ class TeleboxSettingsFragment : DialogFragment() {
                     .putString(TeleboxPlugin.KEY_SHARE_URL, shareUrl.text.toString().trim())
                     .putString(TeleboxPlugin.KEY_TOKEN, token.text.toString().trim())
                     .putString(TeleboxPlugin.KEY_FOLDER_ID, folderId.text.toString().trim().ifBlank { "0" })
+                    .putString(TeleboxPlugin.KEY_TMDB_KEY, tmdbKey.text.toString().trim())
+                    .putBoolean(TeleboxPlugin.KEY_POSTERS_ENABLED, posters.isChecked)
+                    .putBoolean(TeleboxPlugin.KEY_RANDOM_ROWS, randomRows.isChecked)
                     .apply()
                 LinkboxSession.invalidate(context)
                 TeleboxProvider.reloadSettings()

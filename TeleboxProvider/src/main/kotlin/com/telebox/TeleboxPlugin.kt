@@ -29,5 +29,8 @@ class TeleboxPlugin : Plugin() {
         const val KEY_WEB_TOKEN = "web_token"
         const val KEY_WEB_TOKEN_ISSUED_AT = "web_token_issued_at"
         const val KEY_SESSION_UID = "session_uid"
+        const val KEY_TMDB_KEY = "tmdb_key"
+        const val KEY_POSTERS_ENABLED = "posters_enabled"
+        const val KEY_RANDOM_ROWS = "random_rows"
     }
 }

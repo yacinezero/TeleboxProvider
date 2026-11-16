@@ -71,6 +71,19 @@ class TeleboxProvider : MainAPI() {
             ?.let { it.getString(TeleboxPlugin.KEY_EMAIL, "").orEmpty().isNotBlank() &&
                 it.getString(TeleboxPlugin.KEY_PASSWORD, "").orEmpty().isNotBlank() } == true
 
+    private val postersEnabled: Boolean
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getBoolean(TeleboxPlugin.KEY_POSTERS_ENABLED, true) != false
+
+    private val tmdbKey: String
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(TeleboxPlugin.KEY_TMDB_KEY, "").orEmpty().trim()
+
+    private suspend fun posterFor(node: JsonNode, isSeries: Boolean = true): String? {
+        if (!postersEnabled) return null
+        return MetadataManager.poster(displayName(node), null, isSeries, tmdbKey)
+    }
+
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
     private fun shareParts(link: String): Pair<String, String> {
@@ -308,11 +321,17 @@ class TeleboxProvider : MainAPI() {
         if (link.isBlank() && !hasPrivateLogin) return newHomePageResponse(emptyList(), false)
         val items = if (link.isNotBlank()) {
             val (token, _) = shareParts(link)
-            publicShareList(link).map { node -> newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) }
+            publicShareList(link).map { node ->
+                val poster = posterFor(node, isSeries = isDirectory(node))
+                newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) { posterUrl = poster }
+            }
         } else {
             val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
                 ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
-            accountList(pid).map { node -> newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) }
+            accountList(pid).map { node ->
+                val poster = posterFor(node, isSeries = isDirectory(node))
+                newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) { posterUrl = poster }
+            }
         }
         return newHomePageResponse(listOf(HomePageList("Linkbox files", items)), false)
     }
@@ -322,12 +341,18 @@ class TeleboxProvider : MainAPI() {
         if (link.isNotBlank()) {
             val nodes = publicShareList(link)
             val (token, _) = shareParts(link)
-            return nodes.map { node -> newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) }
+            return nodes.map { node ->
+                val poster = posterFor(node, isSeries = isDirectory(node))
+                newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) { posterUrl = poster }
+            }
         }
         if (!hasPrivateLogin) throw ErrorLoadingException("أدخل البريد والمرور للحساب الخاص أو رابطاً عاماً")
         val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
             ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
-        return accountList(pid).map { node -> newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) }
+        return accountList(pid).map { node ->
+            val poster = posterFor(node, isSeries = isDirectory(node))
+            newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) { posterUrl = poster }
+        }
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -339,12 +364,13 @@ class TeleboxProvider : MainAPI() {
             return newTvSeriesLoadResponse(
                 "Linkbox account videos", url, TvType.TvSeries,
                 videos.map { (node, path, season) ->
+                    val parsed = TitleParser.clean(path.substringAfterLast("/"))
                     val episodeNumber = (episodeNumbers[season] ?: 0) + 1
                     episodeNumbers[season] = episodeNumber
                     newEpisode(accountNodeUrl(node), {
                         name = path
-                        this.season = season
-                        this.episode = episodeNumber
+                        this.season = parsed.season ?: season
+                        this.episode = parsed.episode ?: episodeNumber
                     }, false)
                 }
             )
