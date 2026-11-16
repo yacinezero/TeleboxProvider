@@ -106,6 +106,37 @@ class TeleboxProvider : MainAPI() {
         }
     }
 
+    private fun isGenericContainer(node: JsonNode): Boolean {
+        if (!isDirectory(node)) return false
+        val title = displayName(node).trim().lowercase()
+        return title in setOf(
+            "anime", "animation", "cartoon", "cartoons", "movies", "movie", "films", "film",
+            "series", "tv series", "tv", "shows", "foreign", "international", "content",
+            "أنمي", "انمي", "رسوم", "كرتون", "أفلام", "افلام", "فيلم", "مسلسلات", "مسلسل",
+            "أجنبي", "اجنبي", "محتوى", "مجلد", "folder"
+        ) || title.matches(Regex("^(season|الموسم)\\s*\\d+$"))
+    }
+
+    private suspend fun collectHomeNodes(pid: String, category: String, depth: Int = 0): List<JsonNode> = coroutineScope {
+        if (depth > 4) return@coroutineScope emptyList()
+        val nodes = accountList(pid)
+        val direct = nodes.filter { !isDirectory(it) && categoryMatches(it, category) }
+        val workFolders = nodes.filter {
+            isDirectory(it) && categoryMatches(it, category) && !isGenericContainer(it)
+        }
+        val containers = nodes.filter { isDirectory(it) && isGenericContainer(it) }
+        val nested = containers.map { container ->
+            async {
+                folderSemaphore.withPermit {
+                    collectHomeNodes(container.path("id").asText(), category, depth + 1)
+                }
+            }
+        }.awaitAll().flatten()
+        (workFolders + direct + nested)
+            .distinctBy { "${it.path("id").asText()}:${itemId(it)}" }
+            .take(100)
+    }
+
     private suspend fun homeCards(nodes: List<JsonNode>, publicToken: String?, category: String): List<SearchResponse> = coroutineScope {
         val selected = nodes.filter { categoryMatches(it, category) }
         val ordered = if (randomRowsEnabled()) selected.shuffled() else selected
@@ -360,7 +391,7 @@ class TeleboxProvider : MainAPI() {
         } else {
             val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
                 ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
-            homeCards(accountList(pid), null, category)
+            homeCards(collectHomeNodes(pid, category), null, category)
         }
         return newHomePageResponse(listOf(HomePageList(request.name, items)), false)
     }
