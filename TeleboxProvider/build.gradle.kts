@@ -1,4 +1,4 @@
-version = 25
+version = 26
 
 cloudstream {
     description = "Experimental v7.4: folder-first titles, optional metadata posters, and rclone-style Linkbox login"

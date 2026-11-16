@@ -18,6 +18,7 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.mainPage
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
@@ -46,6 +47,12 @@ class TeleboxProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Others)
     override val hasMainPage = true
     override val hasQuickSearch = true
+    override val mainPage = listOf(
+        mainPage("telebox:category:all", "Linkbox files", true),
+        mainPage("telebox:category:movies", "أفلام", true),
+        mainPage("telebox:category:foreign-series", "مسلسلات أجنبية", true),
+        mainPage("telebox:category:anime", "أنمي", true)
+    )
 
     private val mapper = jacksonObjectMapper()
     private val http = OkHttpClient()
@@ -82,6 +89,33 @@ class TeleboxProvider : MainAPI() {
     private suspend fun posterFor(node: JsonNode, isSeries: Boolean = true): String? {
         if (!postersEnabled) return null
         return MetadataManager.poster(displayName(node), null, isSeries, tmdbKey)
+    }
+
+    private fun randomRowsEnabled(): Boolean = appContext
+        ?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+        ?.getBoolean(TeleboxPlugin.KEY_RANDOM_ROWS, true) == true
+
+    private fun categoryMatches(node: JsonNode, category: String): Boolean {
+        if (category == "all") return true
+        val text = displayName(node).lowercase()
+        return when (category) {
+            "movies" -> listOf("movie", "film", "افلام", "أفلام", "فيلم").any(text::contains)
+            "foreign-series" -> listOf("series", "season", "مسلسل", "مسلسلات", "tv", "show", "أجنبي", "اجنبي").any(text::contains)
+            "anime" -> listOf("anime", "انمي", "أنمي", "animation").any(text::contains)
+            else -> true
+        }
+    }
+
+    private suspend fun homeCards(nodes: List<JsonNode>, publicToken: String?, category: String): List<SearchResponse> = coroutineScope {
+        val selected = nodes.filter { categoryMatches(it, category) }
+        val ordered = if (randomRowsEnabled()) selected.shuffled() else selected
+        ordered.map { node ->
+            async {
+                val poster = posterFor(node, isSeries = isDirectory(node))
+                val url = publicToken?.let { nodeUrl(it, node) } ?: accountNodeUrl(node)
+                newMovieSearchResponse(displayName(node), url, TvType.Movie) { posterUrl = poster }
+            }
+        }.awaitAll()
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
@@ -317,23 +351,18 @@ class TeleboxProvider : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val category = request.data.substringAfter("telebox:category:", "all")
         val link = savedShareUrl
         if (link.isBlank() && !hasPrivateLogin) return newHomePageResponse(emptyList(), false)
         val items = if (link.isNotBlank()) {
             val (token, _) = shareParts(link)
-            publicShareList(link).map { node ->
-                val poster = posterFor(node, isSeries = isDirectory(node))
-                newMovieSearchResponse(displayName(node), nodeUrl(token, node), TvType.Movie) { posterUrl = poster }
-            }
+            homeCards(publicShareList(link), token, category)
         } else {
             val pid = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
                 ?.getString(TeleboxPlugin.KEY_FOLDER_ID, "0").orEmpty()
-            accountList(pid).map { node ->
-                val poster = posterFor(node, isSeries = isDirectory(node))
-                newMovieSearchResponse(displayName(node), accountNodeUrl(node), TvType.Movie) { posterUrl = poster }
-            }
+            homeCards(accountList(pid), null, category)
         }
-        return newHomePageResponse(listOf(HomePageList("Linkbox files", items)), false)
+        return newHomePageResponse(listOf(HomePageList(request.name, items)), false)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {

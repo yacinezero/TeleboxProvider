@@ -70,7 +70,7 @@ class TeleboxSettingsFragment : DialogFragment() {
         }
         val randomRows = Switch(context).apply {
             text = "ترتيب عشوائي للصفوف"
-            isChecked = prefs.getBoolean(TeleboxPlugin.KEY_RANDOM_ROWS, false)
+            isChecked = prefs.getBoolean(TeleboxPlugin.KEY_RANDOM_ROWS, true)
         }
         layout.addView(help)
         layout.addView(email)
