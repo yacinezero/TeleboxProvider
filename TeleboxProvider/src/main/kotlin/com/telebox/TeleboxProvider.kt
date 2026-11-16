@@ -22,9 +22,15 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Linkbox public-share provider.
@@ -43,6 +49,10 @@ class TeleboxProvider : MainAPI() {
 
     private val mapper = jacksonObjectMapper()
     private val http = OkHttpClient()
+    private val folderSemaphore = Semaphore(6)
+
+    private data class CachedList(val expiresAt: Long, val items: List<JsonNode>)
+    private val accountListCache = ConcurrentHashMap<String, CachedList>()
 
     private val savedShareUrl: String
         get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
@@ -51,6 +61,10 @@ class TeleboxProvider : MainAPI() {
     private val savedToken: String
         get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
             ?.getString(TeleboxPlugin.KEY_TOKEN, "")?.trim().orEmpty()
+
+    private val savedEmail: String
+        get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(TeleboxPlugin.KEY_EMAIL, "").orEmpty().trim()
 
     private val hasPrivateLogin: Boolean
         get() = appContext?.getSharedPreferences(TeleboxPlugin.PREFS_NAME, Context.MODE_PRIVATE)
@@ -185,6 +199,9 @@ class TeleboxProvider : MainAPI() {
 
     private suspend fun accountList(pid: String): List<JsonNode> {
         val context = appContext ?: throw ErrorLoadingException("CloudStream Context غير متاح")
+        val cacheKey = "$savedEmail:$pid"
+        val now = System.currentTimeMillis()
+        accountListCache[cacheKey]?.takeIf { it.expiresAt > now }?.let { return it.items }
         val result = mutableListOf<JsonNode>()
         var webToken = LinkboxSession.webToken(context)
         var retriedSession = false
@@ -214,7 +231,9 @@ class TeleboxProvider : MainAPI() {
             if (pageItems.size < 1000) break
             page++
         }
-        return result
+        val immutable = result.toList()
+        accountListCache[cacheKey] = CachedList(System.currentTimeMillis() + 5 * 60 * 1000L, immutable)
+        return immutable
     }
 
     private suspend fun accountListLegacy(pid: String): List<JsonNode> {
@@ -352,17 +371,32 @@ class TeleboxProvider : MainAPI() {
         season: Int,
         output: MutableList<Triple<JsonNode, String, Int>>
     ) {
-        if (depth > 12 || output.size >= 2000) return
-        var nextSeason = 1
-        for (node in accountList(pid)) {
+        coroutineScope {
+        if (depth > 12 || output.size >= 2000) return@coroutineScope
+        val nodes = accountList(pid)
+        val folders = nodes.filter { isDirectory(it) }
+        val videoNodes = nodes.filter { !isDirectory(it) && isVideoFile(it) }
+        for (node in videoNodes) {
             val name = displayName(node)
             val path = if (folderPath.isBlank()) name else "$folderPath / $name"
-            if (isDirectory(node)) {
-                val childSeason = if (depth == 0) nextSeason++ else season
-                collectAccountVideos(node.path("id").asText(), path, depth + 1, childSeason, output)
-            } else if (isVideoFile(node)) {
-                output += Triple(node, path, season)
+            output += Triple(node, path, season)
+        }
+        folders.mapIndexed { index, node ->
+            async {
+                folderSemaphore.withPermit {
+                    val child = mutableListOf<Triple<JsonNode, String, Int>>()
+                    val childSeason = if (depth == 0) index + 1 else season
+                    collectAccountVideos(
+                        node.path("id").asText(),
+                        if (folderPath.isBlank()) displayName(node) else "$folderPath / ${displayName(node)}",
+                        depth + 1,
+                        childSeason,
+                        child
+                    )
+                    child
+                }
             }
+        }.awaitAll().forEach { output += it }
         }
     }
 

@@ -1,13 +1,13 @@
 [
   {
-    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v7.1/TeleboxProvider.cs3",
+    "url": "https://github.com/yacinezero/TeleboxProvider/releases/download/v7.2/TeleboxProvider.cs3",
     "status": 1,
-    "version": 21,
+    "version": 22,
     "name": "Telebox / Linkbox",
     "internalName": "TeleboxProvider",
     "authors": ["yacinezero"],
     "description": "Private Linkbox folders with rclone-style email/password login and paginated browsing.",
-    "fileSize": 30524,
+    "fileSize": 34047,
     "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider",
     "language": "all",
     "tvTypes": ["Movie", "TvSeries", "Others"],
