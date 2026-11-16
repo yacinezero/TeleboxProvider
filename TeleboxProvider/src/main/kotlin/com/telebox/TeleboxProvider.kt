@@ -185,21 +185,34 @@ class TeleboxProvider : MainAPI() {
 
     private suspend fun accountList(pid: String): List<JsonNode> {
         val context = appContext ?: throw ErrorLoadingException("CloudStream Context غير متاح")
-        val webToken = LinkboxSession.webToken(context)
         val result = mutableListOf<JsonNode>()
-        for (page in 1..100) {
-            val url = "$mainUrl/api/file/my_file_list/web?pid=${encode(pid)}&pageNo=$page&pageSize=100&sortField=utime&sortAsc=0&platform=web&pf=web&lan=en&token=${encode(webToken)}"
+        var webToken = LinkboxSession.webToken(context)
+        var retriedSession = false
+        var page = 1
+        while (page <= 100) {
+            val url = "$mainUrl/api/file/my_file_list/web?pid=${encode(pid)}&pageNo=$page&pageSize=1000&sortField=utime&sortAsc=0&platform=web&pf=web&lan=en&token=${encode(webToken)}"
             val request = Request.Builder().url(url).header("User-Agent", BROWSER_UA).build()
             val body = http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw ErrorLoadingException("Linkbox account API HTTP ${response.code}")
                 response.body?.string().orEmpty()
             }
             val root = mapper.readTree(body)
-            if (root.path("status").asInt(0) != 1) throw ErrorLoadingException(root.path("msg").asText("جلسة Linkbox منتهية أو غير صالحة"))
+            if (root.path("status").asInt(0) != 1) {
+                val message = root.path("msg").asText("")
+                val authFailure = message.contains(Regex("token|expired|login|auth", RegexOption.IGNORE_CASE))
+                if (authFailure && !retriedSession) {
+                    LinkboxSession.invalidate(context)
+                    webToken = LinkboxSession.webToken(context, force = true)
+                    retriedSession = true
+                    continue
+                }
+                throw ErrorLoadingException(if (message.isBlank()) "جلسة Linkbox منتهية أو غير صالحة" else "Linkbox: $message")
+            }
             val pageItems = root.path("data").path("list").toList()
                 .filter { it.path("pid").asText(pid) == pid }
             result += pageItems
             if (pageItems.size < 1000) break
+            page++
         }
         return result
     }

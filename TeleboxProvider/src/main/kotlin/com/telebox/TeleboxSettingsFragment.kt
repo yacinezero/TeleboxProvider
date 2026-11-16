@@ -23,17 +23,17 @@ class TeleboxSettingsFragment : DialogFragment() {
         }
 
         val help = TextView(context).apply {
-            text = "للتشغيل الموثوق أدخل بريد وكلمة مرور Linkbox. يمكن استعمال Token القديم للتصفح الاحتياطي فقط."
+            text = "إعداد الحساب مثل rclone: Token اختياري لواجهة Linkbox المفتوحة، والبريد وكلمة المرور مطلوبان لإنشاء جلسة الويب وتشغيل الملفات."
             setPadding(0, 0, 0, (12 * density).toInt())
         }
         val email = EditText(context).apply {
-            hint = "البريد الإلكتروني في Linkbox (مطلوب للحساب الخاص)"
+            hint = "email = بريد Linkbox (مطلوب)"
             setText(prefs.getString(TeleboxPlugin.KEY_EMAIL, "") ?: "")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
             isSingleLine = true
         }
         val password = EditText(context).apply {
-            hint = "كلمة مرور Linkbox"
+            hint = "password = كلمة مرور Linkbox (مطلوبة)"
             setText(prefs.getString(TeleboxPlugin.KEY_PASSWORD, "") ?: "")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             isSingleLine = true
@@ -45,7 +45,7 @@ class TeleboxSettingsFragment : DialogFragment() {
             isSingleLine = true
         }
         val token = EditText(context).apply {
-            hint = "Telebox API Token للحساب"
+            hint = "token = Telebox API Token (اختياري، مثل rclone)"
             setText(prefs.getString(TeleboxPlugin.KEY_TOKEN, "") ?: "")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             isSingleLine = true
