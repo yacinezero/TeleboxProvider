@@ -6,13 +6,12 @@
     "name": "Telebox / Linkbox",
     "internalName": "TeleboxProvider",
     "authors": ["yacinezero"],
-    "description": "Organize saved Linkbox account videos by folder and rclone-style email/password Web Token login, token separation, session retry, and paginated folders.",
+    "description": "Private Linkbox folders with rclone-style email/password login and paginated browsing.",
     "fileSize": 30524,
     "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider",
     "language": "all",
     "tvTypes": ["Movie", "TvSeries", "Others"],
     "iconUrl": "https://www.linkbox.to/favicon.ico",
-    "apiVersion": 1,
-    "fileHash": "sha256-843fe43776410d155d571db24b7a773d34a4266098e3f53f9d6691dd055d66ce"
+    "apiVersion": 1
   }
 ]

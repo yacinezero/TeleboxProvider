@@ -1,6 +1,6 @@
 {
-  "name": "Telebox Provider (experimental)",
-  "description": "Source repository for an experimental CloudStream Telebox/Linkbox provider",
+  "name": "Telebox / Linkbox",
+  "description": "CloudStream provider for private Linkbox folders and public share browsing",
   "iconUrl": "https://www.linkbox.to/favicon.ico",
   "manifestVersion": 1,
   "pluginLists": [
