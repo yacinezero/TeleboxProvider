@@ -7,7 +7,7 @@
     "internalName": "TeleboxProvider",
     "authors": ["yacinezero"],
     "description": "Experimental folder-first titles and optional posters. v7.3 remains the stable fallback.",
-    "fileSize": 44061,
+    "fileSize": 44718,
     "repositoryUrl": "https://github.com/yacinezero/TeleboxProvider/tree/feature/v7.4-improvements",
     "language": "all",
     "tvTypes": ["Movie", "TvSeries", "Others"],

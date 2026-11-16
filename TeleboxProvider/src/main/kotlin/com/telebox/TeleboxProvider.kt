@@ -361,27 +361,40 @@ class TeleboxProvider : MainAPI() {
             val videos = mutableListOf<Triple<JsonNode, String, Int>>()
             collectAccountVideos(accountPid, "", 0, 1, videos)
             val episodeNumbers = mutableMapOf<Int, Int>()
+            val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
+            for ((node, path, season) in videos) {
+                val parsed = TitleParser.clean(path.substringAfterLast("/"))
+                val parentFolder = path.substringBeforeLast("/", path).substringAfterLast("/")
+                val poster = if (postersEnabled && parentFolder.isNotBlank()) {
+                    MetadataManager.poster(parentFolder, null, true, tmdbKey)
+                } else null
+                val episodeNumber = (episodeNumbers[season] ?: 0) + 1
+                episodeNumbers[season] = episodeNumber
+                episodes += newEpisode(accountNodeUrl(node), {
+                    name = path
+                    posterUrl = poster
+                    this.season = parsed.season ?: season
+                    this.episode = parsed.episode ?: episodeNumber
+                }, false)
+            }
             return newTvSeriesLoadResponse(
                 "Linkbox account videos", url, TvType.TvSeries,
-                videos.map { (node, path, season) ->
-                    val parsed = TitleParser.clean(path.substringAfterLast("/"))
-                    val episodeNumber = (episodeNumbers[season] ?: 0) + 1
-                    episodeNumbers[season] = episodeNumber
-                    newEpisode(accountNodeUrl(node), {
-                        name = path
-                        this.season = parsed.season ?: season
-                        this.episode = parsed.episode ?: episodeNumber
-                    }, false)
-                }
+                episodes
             )
         }
         val (token, pid) = parseNodeUrl(url)
             ?: return newMovieLoadResponse("Linkbox file", url, TvType.Movie, url)
         val videos = mutableListOf<Pair<JsonNode, String>>()
         collectVideos(token, pid, "", 0, videos)
-        val episodes = videos.map { (node, path) ->
-            newEpisode(nodeUrl(token, node), {
+        val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
+        for ((node, path) in videos) {
+            val parentFolder = path.substringBeforeLast("/", path).substringAfterLast("/")
+            val poster = if (postersEnabled && parentFolder.isNotBlank()) {
+                MetadataManager.poster(parentFolder, null, true, tmdbKey)
+            } else null
+            episodes += newEpisode(nodeUrl(token, node), {
                 name = path
+                posterUrl = poster
             }, false)
         }
         return newTvSeriesLoadResponse(
